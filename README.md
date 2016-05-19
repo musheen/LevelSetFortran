@@ -16,4 +16,4 @@ Couple of notes:
 - Currently in serial. Parallel version is in the works.
 - Currently uses uniform grid spacing. 
 - The .stl files need to be clean. No pierced faces or dirty CAD.
-- Current code is pretty messy. I will try and clean it up later when I have time.
+- Current code is pretty messy, and a lot of unused routines. I will try and clean it up later when I have time.
