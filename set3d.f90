@@ -20,7 +20,7 @@ IMPLICIT NONE
 !*************************************************************************************!
 
 INTEGER :: j,sUnit,nbytePhi,offset,nxs,n1,n2,n3,fN,im,jm,km,ip,jp,kp,dd
-INTEGER :: iter,nx,ny,nz,qG,nn,counter,solutionType,orderUp,order1,order2
+INTEGER :: iter,nx,ny,nz,qG,nn,counter,orderUp,order1,order2
 REAL :: a0,a1,a2,a3,a4,t,xLo(3),xHi(3),xs,ys,yp,ypp,g,gp,x0,x1,dxs,dPlus,dMinus
 REAL :: pX1,pX2,pX3,pY1,pY2,pY3,pZ1,pZ2,pZ3,gX,gY,gZ,dis,minD,k1,h1,k2,k3,k4,t5
 REAL :: B1,B2,B3,C1,C2,C3,pSx,pSy,pSz,pS,pX,pY,pZ,sgn,ddx,ddy,ddz,gM,gMM,phiErrS
@@ -43,14 +43,6 @@ INTEGER iargc
 REAL,ALLOCATABLE,DIMENSION(:,:) :: q1S,q2S,q3S,q4S,q5S,q6S,q7S,q8S
 INTEGER,DIMENSION(8) :: qq
 
-
-!*************************************************************************************!
-! Solution Type
-!*************************************************************************************!
-
-solutionType = 1
-
-IF (solutionType == 1) THEN ! Read STL
 
 !*************************************************************************************!
 ! Import STL Data
@@ -342,8 +334,6 @@ CALL cpu_time(t2)
 PRINT*, " Search Run Time: ",t2-t1," Seconds"
 PRINT*,
 
-
-
 !*************************************************************************************!
 ! Fast Marching Method
 !*************************************************************************************!
@@ -521,97 +511,6 @@ PRINT*,
 
 
 !*************************************************************************************!
-! Set MMS
-!*************************************************************************************!
-
-
-ELSEIF (solutionType == 2) THEN ! MMS
-
-! set dx
-dx = .05;
-
-! define Cartesian grid
-nx = ceiling((2.)/dx)+1;
-ny = ceiling((2.)/dx)+1;
-nz = ceiling((2.)/dx)+1;
-
-! set xLo and xHi
-xLo =(/-1.,-1.,-1./)
-xHi =(/1.,1.,1./)
-
-
-ALLOCATE(phiS(0:nx,0:ny,0:nz))
-ALLOCATE(phiO(0:nx,0:ny,0:nz))
-ALLOCATE(phiN(0:nx,0:ny,0:nz))
-ALLOCATE(gradPhiMag(0:nx,0:ny,0:nz))
-ALLOCATE(phiE(0:nx,0:ny,0:nz))
-ALLOCATE(phi1(0:nx,0:ny,0:nz))
-ALLOCATE(phi2(0:nx,0:ny,0:nz))
-ALLOCATE(phi3(0:nx,0:ny,0:nz))
-
-! allocate phi
-ALLOCATE(phi(0:nx,0:ny,0:nz))
-phi = 1.
-
-
-! print out grid spacing
-PRINT*, " Setting Grid Size "
-PRINT*, " Grid Size: nx =",nx,", ny =",ny,",nz =",nz 
-PRINT*, " Grid Spacing: dx =", dx
-PRINT*,
-PRINT*, " Running MMS "
-PRINT*, 
-
-
-! allocate a grid of x,y,z points 
-ALLOCATE(gridX(0:nx,0:ny,0:nz,3))
-DO i = 0,nx
-   DO j = 0,ny
-      DO k = 0,nz
-         gridX(i,j,k,1) = xLo(1) + i*dx
-         gridX(i,j,k,2) = xLo(2) + j*dx
-         gridX(i,j,k,3) = xLo(3) + k*dx
-      END DO
-   END DO
-END DO
-
-
-
-period = 10.
-pi = 4.*atan(1.);
-a = .1
-aa = a/3.
-bb = 2.*pi/period;
-
-
-! set phi
-DO i = 0,nx
-   DO j = 0,ny
-      DO k = 0,nz
-
-         x = gridX(i,j,k,1)
-         y = gridX(i,j,k,2)
-         z = gridX(i,j,k,3)
- 
-         phi(i,j,k) =  sin(x*100.) + sin(y*100.) + sin(z*100.)                  
-      END DO
-   END DO
-END DO
-
-
-
-phiO = phi
-
-
-
-ALLOCATE(S(0:nx,0:ny,0:nz))
-
-S = 0.
-
-
-END IF
-
-!*************************************************************************************!
 ! Paraview Output
 !*************************************************************************************!
 
@@ -654,11 +553,7 @@ CLOSE(sUnit)
 ALLOCATE(phiSB(0:nx,0:ny,0:nz))
 ALLOCATE(phiNB(0:nx,0:ny,0:nz))
 
-
-
 CALL narrowBand(nx,ny,nz,dx,phi,phiNB,phiSB)
-
-
 
 !*************************************************************************************!
 ! Initialize Gradients
@@ -677,7 +572,7 @@ gradPhiMag = 0.
 phiN = phi
 
 orderUp = 1
-order1 = 6
+order1 = 2
 order2 = 2
 
 
@@ -732,7 +627,7 @@ DO n = 1,iter
          DO k = 0,nz
             IF (phiNB(i,j,k) == 1) THEN
                CALL firstDeriv(i,j,k,nx,ny,nz,dx,phi,phiX,phiY,phiZ,order1,gMM)   
-               CALL minMax(i,j,k,nx,ny,nz,dx,phi,gradPhi,grad2Phi,gradMixPhi,F,gridX,solutionType)
+               CALL minMax(i,j,k,nx,ny,nz,dx,phi,gradPhi,grad2Phi,gradMixPhi,F,gridX)
                k1 = F !F*gMM !max(F,0.)*dPlus + min(F,0.)*dMinus ! F*gM  
                phi1(i,j,k) = phi(i,j,k) + h1*k1
             END IF
@@ -782,7 +677,7 @@ DO n = 1,iter
          DO k = 0,nz
             IF (phiNB(i,j,k) == 1) THEN
                CALL firstDeriv(i,j,k,nx,ny,nz,dx,phi1,phiX,phiY,phiZ,order1,gMM)   
-               CALL minMax(i,j,k,nx,ny,nz,dx,phi1,gradPhi,grad2Phi,gradMixPhi,F,gridX,solutionType)
+               CALL minMax(i,j,k,nx,ny,nz,dx,phi1,gradPhi,grad2Phi,gradMixPhi,F,gridX)
                k2 = F !F*gMM !max(F,0.)*dPlus + min(F,0.)*dMinus ! F*gM  
                phi2(i,j,k) = 3./4.*phi(i,j,k) + 1./4.*phi1(i,j,k) + 1./4.*h1*k2
             END IF
@@ -831,7 +726,7 @@ DO n = 1,iter
          DO k = 0,nz
             IF (phiNB(i,j,k) == 1) THEN
                CALL firstDeriv(i,j,k,nx,ny,nz,dx,phi2,phiX,phiY,phiZ,order1,gMM)   
-               CALL minMax(i,j,k,nx,ny,nz,dx,phi2,gradPhi,grad2Phi,gradMixPhi,F,gridX,solutionType)
+               CALL minMax(i,j,k,nx,ny,nz,dx,phi2,gradPhi,grad2Phi,gradMixPhi,F,gridX)
                k3 = F !F*gMM !max(F,0.)*dPlus + min(F,0.)*dMinus ! F*gM  
                phiN(i,j,k) = 1./3.*phi(i,j,k) + 2./3.*phi2(i,j,k) + 2./3.*h1*k3 
             END IF
@@ -872,8 +767,8 @@ DO n = 1,iter
    
    !**************************** Reinitialization *******************************!
  
-   ! Removed for MMS - see before March 2nd for how it was included
- 
+   ! Currently not used  
+
    !****************************** Narrow Band **********************************!
 
    CALL narrowBand(nx,ny,nz,dx,phi,phiNB,phiSB)
@@ -887,12 +782,6 @@ CALL cpu_time(t4)
 PRINT*, " Total Run Time: ",t4-t1," Seconds"
 PRINT*,
    
-
-!*************************************************************************************!
-! Fast Marching Method
-!*************************************************************************************!
-
-! Removed for MMS - see before March 2nd for how it was included
 
 !*************************************************************************************!
 ! Asymptotic Error
@@ -920,7 +809,7 @@ PRINT*, " Asymptotic Error: ",phiErr
 
 
 ! grad phi
-order1 = 6
+order1 = 2
 DO i = 0,nx
    DO j = 0,ny
       DO k = 0,nz
@@ -986,8 +875,6 @@ WRITE(sUnit)'</VTKFile>'//lf
 CLOSE(sUnit)
 
 
-
-
 !*************************************************************************************!
 !
 ! Program End
@@ -1018,8 +905,6 @@ REAL :: eps = 1.E-13
 
 ! smeared
 sgn = pS/sqrt(pS*pS + dxx*dxx*gM)
-
-
 
 
 ENDSUBROUTINE phiSign
@@ -1084,94 +969,10 @@ IF (order == 2) THEN
   
    dxx = 1./(dx); 
 
-   !IF (i==0) THEN
-   !   phiX = (-3./2.*phi(i,j,k)+2.*phi(i+1,j,k)-1./2.*phi(i+2,j,k))*dxx
-   !ELSEIF (j==0) THEN 
-   !   phiY = (-3./2.*phi(i,j,k)+2.*phi(i,j+1,k)-1./2.*phi(i,j+2,k))*dxx
-   !ELSEIF (k==0) THEN 
-   !   phiZ = (-3./2.*phi(i,j,k)+2.*phi(i,j,k+1)-1./2.*phi(i,j,k+2))*dxx
-   !ELSEIF (i==nx) THEN 
-   !   phiX =-(-3./2.*phi(i,j,k)+2.*phi(i-1,j,k)-1./2.*phi(i-2,j,k))*dxx
-   !ELSEIF (j==ny) THEN
-   !   phiY =-(-3./2.*phi(i,j,k)+2.*phi(i,j-1,k)-1./2.*phi(i,j-2,k))*dxx
-   !ELSEIF (k==nz) THEN
-   !   phiZ =-(-3./2.*phi(i,j,k)+2.*phi(i,j,k-1)-1./2.*phi(i,j,k-2))*dxx
-   !ELSE
-      ! second order first derivative
-      phiX = (-1./2.*phi(i-1,j,k) +  1./2.*phi(i+1,j,k))*dxx
-      phiY = (-1./2.*phi(i,j-1,k) +  1./2.*phi(i,j+1,k))*dxx
-      phiZ = (-1./2.*phi(i,j,k-1) +  1./2.*phi(i,j,k+1))*dxx
-   !END IF
-
-ELSEIF (order == 4) THEN 
-
-
-   dxx = 1./(dx); 
-
-   IF (i<2) THEN
-      phiX = (-25./12.*phi(i,j,k)+4.*phi(i+1,j,k)-3.*phi(i+2,j,k)+4./3.*phi(i+3,j,k)-1./4.*phi(i+4,j,k))*dxx
-   ELSEIF (j<2) THEN 
-      phiY = (-25./12.*phi(i,j,k)+4.*phi(i,j+1,k)-3.*phi(i,j+2,k)+4./3.*phi(i,j+3,k)-1./4.*phi(i,j+4,k))*dxx
-   ELSEIF (k<2) THEN 
-      phiZ = (-25./12.*phi(i,j,k)+4.*phi(i,j,k+1)-3.*phi(i,j,k+2)+4./3.*phi(i,j,k+3)-1./4.*phi(i,j,k+4))*dxx
-   ELSEIF (i>nx-2) THEN 
-      phiX =-(-25./12.*phi(i,j,k)+4.*phi(i-1,j,k)-3.*phi(i-2,j,k)+4./3.*phi(i-3,j,k)-1./4.*phi(i-4,j,k))*dxx
-   ELSEIF (j>ny-2) THEN
-      phiY =-(-25./12.*phi(i,j,k)+4.*phi(i,j-1,k)-3.*phi(i,j-2,k)+4./3.*phi(i,j-3,k)-1./4.*phi(i,j-4,k))*dxx
-   ELSEIF (k>nz-2) THEN
-      phiZ =-(-25./12.*phi(i,j,k)+4.*phi(i,j,k-1)-3.*phi(i,j,k-2)+4./3.*phi(i,j,k-3)-1./4.*phi(i,j,k-4))*dxx
-   ELSE
-
-      dx12 = 1./(12.*dx)
-
-      ! fourth order first derivatives
-      phiX = (-phi(i+2,j,k)+8.*phi(i+1,j,k)-8.*phi(i-1,j,k)+phi(i-2,j,k))*dx12
-      phiY = (-phi(i,j+2,k)+8.*phi(i,j+1,k)-8.*phi(i,j-1,k)+phi(i,j-2,k))*dx12
-      phiZ = (-phi(i,j,k+2)+8.*phi(i,j,k+1)-8.*phi(i,j,k-1)+phi(i,j,k-2))*dx12
-   END IF
-
-ELSEIF (order == 6) THEN ! summation by parts?
-
-
-      im1 = i-1
-      jm1 = j-1
-      km1 = k-1
-      im2 = i-2
-      jm2 = j-2
-      km2 = k-2
-      im3 = i-3
-      jm3 = j-3
-      km3 = k-3
-
-      ip1 = i+1
-      jp1 = j+1
-      kp1 = k+1
-      ip2 = i+2
-      jp2 = j+2
-      kp2 = k+2
-      ip3 = i+3
-      jp3 = j+3
-      kp3 = k+3
-
-      aa1 =-1./60.;
-      aa2 = 3./20.;
-      aa3 =-3./4.;
-      aa4 = 0.;
-      aa5 = 3./4.;
-      aa6 =-3./20.;
-      aa7 = 1./60.;
-
-      ! calculate derivatives
-      phiX = (phi(im3,j,k)*aa1 + phi(im2,j,k)*aa2 + phi(im1,j,k)*aa3 + &
-&            phi(i,j,k)*aa4 + phi(ip1,j,k)*aa5 + phi(ip2,j,k)*aa6 + phi(ip3,j,k)*aa7)/dx    
-
-      phiY = (phi(i,jm3,k)*aa1 + phi(i,jm2,k)*aa2 + phi(i,jm1,k)*aa3 + &
-&            phi(i,j,k)*aa4 + phi(i,jp1,k)*aa5 + phi(i,jp2,k)*aa6 + phi(i,jp3,k)*aa7)/dx   
-
-      phiZ = (phi(i,j,km3)*aa1 + phi(i,j,km2)*aa2 + phi(i,j,km1)*aa3 + &
-&            phi(i,j,k)*aa4 + phi(i,j,kp1)*aa5 + phi(i,j,kp2)*aa6 + phi(i,j,kp3)*aa7)/dx   
-
-
+   ! second order first derivative
+   phiX = (-1./2.*phi(i-1,j,k) +  1./2.*phi(i+1,j,k))*dxx
+   phiY = (-1./2.*phi(i,j-1,k) +  1./2.*phi(i,j+1,k))*dxx
+   phiZ = (-1./2.*phi(i,j,k-1) +  1./2.*phi(i,j,k+1))*dxx
 
 ELSE 
    PRINT*," This order not set yet "
@@ -1211,170 +1012,19 @@ IF (order == 2) THEN
 
    dxx = 1./(dx*dx) 
 
-   !IF (i==0) THEN
-   !   phiXY = (-3./2.*gradPhi(i,j,k,2)+2.*gradPhi(i+1,j,k,2)-1./2.*gradPhi(i+2,j,k,2))/dx
-   !   phiXX = (2.*phi(i,j,k)-5.*phi(i+1,j,k)+4.*phi(i+2,j,k)-phi(i+3,j,k))*dxx 
-   !ELSEIF (j==0) THEN 
-   !   phiYZ = (-3./2.*gradPhi(i,j,k,3)+2.*gradPhi(i,j+1,k,3)-1./2.*gradPhi(i,j+2,k,3))/dx
-   !   phiYY = (2.*phi(i,j,k)-5.*phi(i,j+1,k)+4.*phi(i,j+2,k)-phi(i,j+3,k))*dxx
-   !ELSEIF (k==0) THEN 
-   !   phiXZ = (-3./2.*gradPhi(i,j,k,1)+2.*gradPhi(i,j,k+1,1)-1./2.*gradPhi(i,j,k+2,1))/dx
-   !   phiZZ = (2.*phi(i,j,k)-5.*phi(i,j,k+1)+4.*phi(i,j,k+2)-phi(i,j,k+3))*dxx
-   !ELSEIF (i==nx) THEN 
-   !   phiXY =-(-3./2.*gradPhi(i,j,k,2)+2.*gradPhi(i-1,j,k,2)-1./2.*gradPhi(i-2,j,k,2))/dx
-   !   phiXX = (2.*phi(i,j,k)-5.*phi(i-1,j,k)+4.*phi(i-2,j,k)-phi(i-3,j,k))*dxx
-   !ELSEIF (j==ny) THEN
-   !   phiYZ =-(-3./2.*gradPhi(i,j,k,3)+2.*gradPhi(i,j-1,k,3)-1./2.*gradPhi(i,j-2,k,3))/dx
-   !   phiYY = (2.*phi(i,j,k)-5.*phi(i,j-1,k)+4.*phi(i,j-2,k)-phi(i,j-3,k))*dxx
-   !ELSEIF (k==nz) THEN
-   !   phiXZ =-(-3./2.*gradPhi(i,j,k,1)+2.*gradPhi(i,j,k-1,1)-1./2.*gradPhi(i,j,k-2,1))/dx
-   !   phiZZ = (2.*phi(i,j,k)-5.*phi(i,j,k-1)+4.*phi(i,j,k-2)-phi(i,j,k-3))*dxx
-   !ELSE
-
-      ! second order second derivatives
-      phiXX = (-2.*phi(i,j,k) + phi(i+1,j,k) + phi(i-1,j,k))*dxx;          
-      phiYY = (-2.*phi(i,j,k) + phi(i,j+1,k) + phi(i,j-1,k))*dxx;
-      phiZZ = (-2.*phi(i,j,k) + phi(i,j,k+1) + phi(i,j,k-1))*dxx;
+   ! second order second derivatives
+   phiXX = (-2.*phi(i,j,k) + phi(i+1,j,k) + phi(i-1,j,k))*dxx;          
+   phiYY = (-2.*phi(i,j,k) + phi(i,j+1,k) + phi(i,j-1,k))*dxx;
+   phiZZ = (-2.*phi(i,j,k) + phi(i,j,k+1) + phi(i,j,k-1))*dxx;
        
-      ! second order mixed derivatives
-      phiXY = phi(i+1,j+1,k  )-phi(i+1,j-1,k  )-phi(i-1,j+1,k  )+phi(i-1,j-1,k  )
-      phiYZ = phi(i  ,j+1,k+1)-phi(i  ,j+1,k-1)-phi(i  ,j-1,k+1)+phi(i  ,j-1,k-1)
-      phiXZ = phi(i+1,j  ,k+1)-phi(i+1,j  ,k-1)-phi(i-1,j  ,k+1)+phi(i-1,j  ,k-1)
+   ! second order mixed derivatives
+   phiXY = phi(i+1,j+1,k  )-phi(i+1,j-1,k  )-phi(i-1,j+1,k  )+phi(i-1,j-1,k  )
+   phiYZ = phi(i  ,j+1,k+1)-phi(i  ,j+1,k-1)-phi(i  ,j-1,k+1)+phi(i  ,j-1,k-1)
+   phiXZ = phi(i+1,j  ,k+1)-phi(i+1,j  ,k-1)-phi(i-1,j  ,k+1)+phi(i-1,j  ,k-1)
 
-      phiXY = phiXY*dxx/4.
-      phiYZ = phiYZ*dxx/4.
-      phiXZ = phiXZ*dxx/4.
-
-   !END IF
-
-   !phiXY = (-1./2.*gradPhi(i-1,j,k,2) +  1./2.*gradPhi(i+1,j,k,2))/dx
-   !phiYZ = (-1./2.*gradPhi(i,j-1,k,3) +  1./2.*gradPhi(i,j+1,k,3))/dx
-   !phiXZ = (-1./2.*gradPhi(i,j,k-1,1) +  1./2.*gradPhi(i,j,k+1,1))/dx
-
-ELSEIF (order == 4) THEN 
-
-   
-   dx12 = 1./(12.*dx)
-   dxx = 1./(dx*dx) 
-
-   
-   IF (i<2) THEN
-
-      phiXY = (-3./2.*gradPhi(i,j,k,2)+2.*gradPhi(i+1,j,k,2)-1./2.*gradPhi(i+2,j,k,2))/dx
-      phiXX = (15./4.*phi(i,j,k)-77./6.*phi(i+1,j,k)+107./6.*phi(i+2,j,k)-13.*phi(i+3,j,k) &
-&             +61./12.*phi(i+4,j,k)-5./6.*phi(i+5,j,k))*dxx 
-
-   ELSEIF (j<2) THEN 
-
-      phiYZ = (-3./2.*gradPhi(i,j,k,3)+2.*gradPhi(i,j+1,k,3)-1./2.*gradPhi(i,j+2,k,3))/dx
-      phiYY = (15./4.*phi(i,j,k)-77./6.*phi(i,j+1,k)+107./6.*phi(i,j+2,k)-13.*phi(i,j+3,k) &
-&             +61./12.*phi(i,j+4,k)-5./6.*phi(i,j+5,k))*dxx 
-
-   ELSEIF (k<2) THEN 
-
-      phiXZ = (-3./2.*gradPhi(i,j,k,1)+2.*gradPhi(i,j,k+1,1)-1./2.*gradPhi(i,j,k+2,1))/dx
-      phiZZ = (15./4.*phi(i,j,k)-77./6.*phi(i,j,k+1)+107./6.*phi(i,j,k+2)-13.*phi(i,j,k+3) &
-&             +61./12.*phi(i,j,k+4)-5./6.*phi(i,j,k+5))*dxx 
-
-   ELSEIF (i>nx-2) THEN 
-
-      phiXY =-(-3./2.*gradPhi(i,j,k,2)+2.*gradPhi(i-1,j,k,2)-1./2.*gradPhi(i-2,j,k,2))/dx
-      phiXX = (15./4.*phi(i,j,k)-77./6.*phi(i-1,j,k)+107./6.*phi(i-2,j,k)-13.*phi(i-3,j,k) &
-&             +61./12.*phi(i-4,j,k)-5./6.*phi(i-5,j,k))*dxx
-
-   ELSEIF (j>ny-2) THEN
-
-      phiYZ =-(-3./2.*gradPhi(i,j,k,3)+2.*gradPhi(i,j-1,k,3)-1./2.*gradPhi(i,j-2,k,3))/dx
-      phiYY = (15./4.*phi(i,j,k)-77./6.*phi(i,j-1,k)+107./6.*phi(i,j-2,k)-13.*phi(i,j-3,k) &
-&             +61./12.*phi(i,j-4,k)-5./6.*phi(i,j-5,k))*dxx
-
-   ELSEIF (k>nz-2) THEN
-
-      phiXZ =-(-3./2.*gradPhi(i,j,k,1)+2.*gradPhi(i,j,k-1,1)-1./2.*gradPhi(i,j,k-2,1))/dx
-      phiZZ = (15./4.*phi(i,j,k)-77./6.*phi(i,j,k-1)+107./6.*phi(i,j,k-2)-13.*phi(i,j,k-3) &
-&             +61./12.*phi(i,j,k-4)-5./6.*phi(i,j,k-5))*dxx 
-   ELSE
-
-
-      !fourth order second derivatives
-      phiXX = (-1./12.*phi(i-2,j,k)+4./3.*phi(i-1,j,k)-5./2.*phi(i,j,k)+4./3.*phi(i+1,j,k)-1./12.*phi(i+2,j,k))*dxx
-      phiYY = (-1./12.*phi(i,j-2,k)+4./3.*phi(i,j-1,k)-5./2.*phi(i,j,k)+4./3.*phi(i,j+1,k)-1./12.*phi(i,j+2,k))*dxx
-      phiZZ = (-1./12.*phi(i,j,k-2)+4./3.*phi(i,j,k-1)-5./2.*phi(i,j,k)+4./3.*phi(i,j,k+1)-1./12.*phi(i,j,k+2))*dxx
-
-
-     
-      ! fourth order mixed derivatives
-      phiXY = (-gradPhi(i+2,j,k,2)+8.*gradPhi(i+1,j,k,2)-8.*gradPhi(i-1,j,k,2)+gradPhi(i-2,j,k,2))*dx12
-      phiXZ = (-gradPhi(i,j,k+2,1)+8.*gradPhi(i,j,k+1,1)-8.*gradPhi(i,j,k-1,1)+gradPhi(i,j,k-2,1))*dx12
-      phiYZ = (-gradPhi(i,j+2,k,3)+8.*gradPhi(i,j+1,k,3)-8.*gradPhi(i,j-1,k,3)+gradPhi(i,j-2,k,3))*dx12
-           
-
-   END IF
-
-ELSEIF (order == 6) THEN 
-
-
-   im1 = i-1
-   jm1 = j-1
-   km1 = k-1
-   im2 = i-2
-   jm2 = j-2
-   km2 = k-2
-   im3 = i-3
-   jm3 = j-3
-   km3 = k-3
-
-   ip1 = i+1
-   jp1 = j+1
-   kp1 = k+1
-   ip2 = i+2
-   jp2 = j+2
-   kp2 = k+2
-   ip3 = i+3
-   jp3 = j+3
-   kp3 = k+3
-
-   aa1 =-1./60.
-   aa2 = 3./20.
-   aa3 =-3./4.
-   aa4 = 0.
-   aa5 = 3./4.
-   aa6 =-3./20.
-   aa7 = 1./60.
-
-   bb1 = 1./90.
-   bb2 =-3./20.
-   bb3 = 3./2.
-   bb4 =-49/18.
-   bb5 = 3./2.
-   bb6 =-3./20.
-   bb7 = 1./90.
-
-
-   !sixth order second derivatives
-   phiXX = (phi(im3,j,k)*bb1 + phi(im2,j,k)*bb2 + phi(im1,j,k)*bb3 + &
-&          phi(i,j,k)*bb4 + phi(ip1,j,k)*bb5 + phi(ip2,j,k)*bb6 + phi(ip3,j,k)*bb7)/dx/dx
-
-   phiYY = (phi(i,jm3,k)*bb1 + phi(i,jm2,k)*bb2 + phi(i,jm1,k)*bb3 + &
-&          phi(i,j,k)*aa4 + phi(i,jp1,k)*bb5 + phi(i,jp2,k)*bb6 + phi(i,jp3,k)*bb7)/dx/dx   
-
-   phiZZ = (phi(i,j,km3)*bb1 + phi(i,j,km2)*bb2 + phi(i,j,km1)*bb3 + &
-&          phi(i,j,k)*bb4 + phi(i,j,kp1)*bb5 + phi(i,j,kp2)*bb6 + phi(i,j,kp3)*bb7)/dx/dx      
-
-
-   !sixth order mixed derivatives
-   phiXY = (gradPhi(im3,j,k,2)*aa1 + gradPhi(im2,j,k,2)*aa2 + gradPhi(im1,j,k,2)*aa3 + &
-&          gradPhi(i,j,k,2)*aa4 + gradPhi(ip1,j,k,2)*aa5 + gradPhi(ip2,j,k,2)*aa6 + &
-&          gradPhi(ip3,j,k,2)*aa7)/dx   
-
-   phiYZ = (gradPhi(i,jm3,k,3)*aa1 + gradPhi(i,jm2,k,3)*aa2 + gradPhi(i,jm1,k,3)*aa3 + &
-&          gradPhi(i,j,k,3)*aa4 + gradPhi(i,jp1,k,3)*aa5 + gradPhi(i,jp2,k,3)*aa6 + &
-&          gradPhi(i,jp3,k,3)*aa7)/dx   
-
-   phiXZ = (gradPhi(i,j,km3,1)*aa1 + gradPhi(i,j,km2,1)*aa2 + gradPhi(i,j,km1,1)*aa3 + &
-&          gradPhi(i,j,k,1)*aa4 + gradPhi(i,j,kp1,1)*aa5 + gradPhi(i,j,kp2,1)*aa6 + & 
-&          gradPhi(i,j,kp3,1)*aa7)/dx   
-
+   phiXY = phiXY*dxx/4.
+   phiYZ = phiYZ*dxx/4.
+   phiXZ = phiXZ*dxx/4.
 
 ELSE 
 
@@ -1390,11 +1040,11 @@ END SUBROUTINE secondDeriv
 ! Calculate Min/Max Flow
 !*************************************************************************************!
 
-SUBROUTINE minMax(i,j,k,nx,ny,nz,dx,phi,gradPhi,grad2Phi,gradMixPhi,F,gridX,solutionType)
+SUBROUTINE minMax(i,j,k,nx,ny,nz,dx,phi,gradPhi,grad2Phi,gradMixPhi,F,gridX)
 
 REAL :: dxx,curv,b1,b2,b3,b4,b5,b6,denom,gM,HH
 INTEGER :: h
-INTEGER,INTENT(IN) :: i,j,k,solutionType
+INTEGER,INTENT(IN) :: i,j,k
 REAL,INTENT(IN) :: dx
 REAL,DIMENSION(0:nx,0:ny,0:nz),INTENT(IN) :: phi
 REAL,DIMENSION(0:nx,0:ny,0:nz,3),INTENT(IN) :: gradPhi,grad2Phi,gradMixPhi,gridX
@@ -1424,154 +1074,34 @@ END IF
 IF (gM < 1.E-13) THEN
    curv = 0.0;
 ELSE 
-
-   b1 = phiYY + phiZZ
-   b2 = phiXX + phiZZ
-   b3 = phiXX + phiYY
-   b4 = phiX*phiY*phiXY
-   b5 = phiX*phiZ*phiXZ
-   b6 = phiY*phiZ*phiYZ
-
-   !curv = b1*phiX*phiX + b2*phiY*phiY + b3*phiZ*phiZ - 2.*b4 - 2.*b5 - 2.*b6
-   !denom = gM
-   !curv = curv/denom
-
    curv = phiXX+phiYY+phiZZ
 END IF
 
 
-
-IF (solutionType == 2) THEN
-
-   ! only works when h = 1 !!
-   h = 1 
-
-   IF (i==0) THEN  
-      F = 0.
-   ELSEIF (j==0) THEN 
-      F = 0.
-   ELSEIF (k==0) THEN 
-      F = 0.
-   ELSEIF (i==nx) THEN 
-      F = 0.
-   ELSEIF (j==ny) THEN
-      F = 0.
-   ELSEIF (k==nz) THEN
-      F = 0.
-   ELSE
-
-      pAve = phi(i,j,k)+phi(i-h,j,k)+phi(i+h,j,k)+phi(i,j+h,k)+phi(i,j-h,k)+phi(i,j,k+h)+phi(i,j,k-h)
-      pAve = pAve/7.
-
-   ! min/max switch
-   IF (pAve < thresh) THEN
-      F = min(curv,0.0)
-   ELSE
-      F = max(curv,0.0)
-   END IF
+! this allows you to set different filter sizes depending on location
+!IF (gridX(i,j,k,1) > 0.) THEN
+!   h = 10
+!ELSE
+   h = 1
+!END IF
 
 
-   END IF
+! threshold value
+thresh = 0.      
 
-ELSE 
-
-   !IF (gridX(i,j,k,1) > 0.) THEN
-   !   h = 10
-   !ELSE
-      h = 1
-   !END IF
+pAve = phi(i,j,k)+phi(i-h,j,k)+phi(i+h,j,k)+phi(i,j+h,k)+phi(i,j-h,k)+phi(i,j,k+h)+phi(i,j,k-h)
+pAve = pAve/7.
 
 
-   ! threshold value
-   thresh = 0.      
-
-   pAve = phi(i,j,k)+phi(i-h,j,k)+phi(i+h,j,k)+phi(i,j+h,k)+phi(i,j-h,k)+phi(i,j,k+h)+phi(i,j,k-h)
-   pAve = pAve/7.
-
-
-   ! min/max switch
-   IF (pAve < thresh) THEN
-      F = min(curv,0.0)
-   ELSE
-      F = max(curv,0.0)
-   END IF
-
+! min/max switch
+IF (pAve < thresh) THEN
+   F = min(curv,0.0)
+ELSE
+   F = max(curv,0.0)
 END IF
 
+
 END SUBROUTINE minMax
-
-
-
-!*************************************************************************************!
-! Calculate Min/Max Flow for MMS
-!*************************************************************************************!
-
-SUBROUTINE mms(S,phi,dx,gridX,nx,ny,nz)
-
-REAL,INTENT(IN) :: dx
-REAL,DIMENSION(0:nx,0:ny,0:nz),INTENT(INOUT) :: phi,S
-REAL :: x,y,z
-INTEGER :: h
-
-h = 1
-
-DO i = 0,nx
-   DO j = 0,ny
-      DO k = 0,nz
-
-         x = gridX(i,j,k,1)
-         y = gridX(i,j,k,2)
-         z = gridX(i,j,k,3)
-
-
-         phiXX = -sin(x)
-         phiYY = -sin(y)
-         phiZZ = -sin(z)
-
-         curv = phiXX+phiYY+phiZZ
-
-
-         IF (i==0) THEN  
-            F = 0.
-         ELSEIF (j==0) THEN 
-            F = 0.
-         ELSEIF (k==0) THEN 
-            F = 0.
-         ELSEIF (i==nx) THEN 
-            F = 0.
-         ELSEIF (j==ny) THEN
-            F = 0.
-         ELSEIF (k==nz) THEN
-            F = 0.
-         ELSE
-
-
-            pAve = phi(i,j,k)+phi(i-h,j,k)+phi(i+h,j,k)+phi(i,j+h,k)+phi(i,j-h,k)+phi(i,j,k+h)+phi(i,j,k-h)
-            pAve = pAve/7.
-
-
-            ! min/max switch
-            IF (pAve < thresh) THEN
-               F = min(curv,0.0)
-            ELSE
-               F = max(curv,0.0)
-            END IF
-         END IF
-
-
-         S(i,j,k) = 0.
-
-
-      END DO
-   END DO
-END DO
-
-
-END SUBROUTINE mms
-
-
-
-
 
 
 !*************************************************************************************!
