@@ -1,5 +1,5 @@
 # levelSetFortran
-Three dimensional level set methods code. Reads an .stl file and creates a level set field using WENO5. Also runs min/max flow on the level set field to smooth the geometry using 2nd order central differencing. 
+Three dimensional level set methods code. Reads an .stl file and creates a signed distance function field using WENO5. Also runs min/max flow on the level set field to smooth the geometry using 2nd order central differencing. 
 
 I have included two sample .stl files to get you started. One is a cube, and the other is two cubes with a unit spacing of 10 between them. 
 
@@ -15,6 +15,6 @@ Couple of notes:
 - Currently has no capability to do moving geometry, that is in the works.
 - Currently in serial. Parallel version is in the works.
 - Currently uses uniform grid spacing. 
-- If you want to only run the level set part, set the min/max iterations to zero.
+- If you want to only run the signed distance function part, set the min/max iterations to zero.
 - The .stl files need to be clean. No pierced faces or dirty CAD.
 - Current code is pretty messy, and a lot of unused routines. I will try and clean it up later when I have time.
