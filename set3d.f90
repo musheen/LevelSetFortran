@@ -180,7 +180,6 @@ DO n = 2,nSurfNode
    
 END DO
 
-
 !*************************************************************************************!
 ! Define Cartesiang Grid Size and Allocate Phi
 !*************************************************************************************!
@@ -191,8 +190,7 @@ ddy = maxY-minY
 ddz = maxZ-minZ
 
 ! set dx
-dx = 0.05!*100.
-!dx = 0.003125*100.
+dx = 0.05
 
 ! define Cartesian grid
 nx = ceiling((maxX-minX)/dx)+1;
@@ -247,7 +245,6 @@ PRINT*, " Grid Spacing: dx =", dx
 PRINT*,
 PRINT*, " Determining Inside and Outside of Geometry "
 PRINT*, 
-
 
 ! allocate centroid
 ALLOCATE(centroid(nSurfElem,4))
@@ -352,10 +349,8 @@ ALLOCATE(S(0:nx,0:ny,0:nz))
 ! source term is zero
 S = 0.
 
-
 PRINT*, " Level Set Time Integration "
 PRINT*, 
-
 
 ! set the phi sign array
 phiS = phi
@@ -385,7 +380,6 @@ DO n=0,iter
          END DO
       END DO
    END DO
-
 
    !****************** Explicit Third Order TVD RK Scheme ************************!
 
@@ -426,7 +420,6 @@ DO n=0,iter
 !      END DO
 !   END DO
  
-
    ! extrapolation boundary condition
    DO i = 0,nx
       DO j = 0,ny
@@ -497,7 +490,6 @@ DO n=0,iter
    ! check for NAN
    IF (isnan(phiErr)) STOP 
 
-
 END DO
 PRINT*,
 
@@ -514,10 +506,8 @@ PRINT*,
 ! Paraview Output
 !*************************************************************************************!
 
-
 PRINT*, " Writing Out Cartesian Grid to Paraview Format "
 PRINT*, 
-
 
 ! output to Paraview
 WRITE(extent,'(3(A3,I6))')' 0 ',nx,' 0 ',ny,' 0 ',nz
@@ -529,7 +519,7 @@ WRITE(coffset,'(I16)')offset
 
 
 sUnit = 11
-OPEN(UNIT=sUnit,FILE='blockBefore.vti',FORM='unformatted',ACCESS='stream',STATUS='replace')
+OPEN(UNIT=sUnit,FILE='signedDistanceFunction.vti',FORM='unformatted',ACCESS='stream',STATUS='replace')
 WRITE(sUnit)'<?xml version="1.0"?>'//lf
 WRITE(sUnit)'<VTKFile type="ImageData" version="0.1" byte_order="LittleEndian">'//lf
 WRITE(sUnit)'<ImageData WholeExtent="',TRIM(extent),'" Origin="',TRIM(origin),'" Spacing="',TRIM(spacing),'">'//lf
@@ -575,17 +565,228 @@ orderUp = 1
 order1 = 2
 order2 = 2
 
-
 !*************************************************************************************!
 ! Min/Max Flow
 !*************************************************************************************!
 
 iter = 2000 !20000
-h1 = .1
-h1 = h1*dx*dx
+CFL = .1
+h1 = CFL*dxx
 
 DO n = 1,iter
 
+   !****************** Explicit Third Order TVD RK Stage 1 ***********************!
+
+   ! Calculate second derivative flow if it is in the narrow band
+   DO i = 0,nx
+      DO j = 0,ny
+         DO k = 0,nz
+            IF (phiNB(i,j,k) == 1) THEN
+               CALL secondDeriv(i,j,k,nx,ny,nz,dx,phi,phiXX,phiYY,phiZZ,phiXY,phiXZ,phiYZ,order2)
+               grad2Phi(i,j,k,1) = phiXX
+               grad2Phi(i,j,k,2) = phiYY
+               grad2Phi(i,j,k,3) = phiZZ
+               gradMixPhi(i,j,k,1) = phiXY
+               gradMixPhi(i,j,k,2) = phiXZ
+               gradMixPhi(i,j,k,3) = phiYZ          
+            END IF
+
+         END DO
+      END DO
+   END DO
+
+   ! Caluclate the min/max flow
+   DO i = 0,nx
+      DO j = 0,ny
+         DO k = 0,nz
+            IF (phiNB(i,j,k) == 1) THEN 
+               CALL minMax(i,j,k,nx,ny,nz,dx,phi,grad2Phi,gradMixPhi,F,gridX)
+               k1 = F  
+               phi1(i,j,k) = phi(i,j,k) + h1*k1
+            END IF
+
+         END DO
+      END DO
+   END DO
+
+   !****************** Explicit Third Order TVD RK Stage 2 ***********************!
+
+   ! Calculate second derivative flow if it is in the narrow band
+   DO i = 0,nx
+      DO j = 0,ny
+         DO k = 0,nz
+            IF (phiNB(i,j,k) == 1) THEN
+               CALL secondDeriv(i,j,k,nx,ny,nz,dx,phi1,phiXX,phiYY,phiZZ,phiXY,phiXZ,phiYZ,order2)
+               grad2Phi(i,j,k,1) = phiXX
+               grad2Phi(i,j,k,2) = phiYY
+               grad2Phi(i,j,k,3) = phiZZ
+               gradMixPhi(i,j,k,1) = phiXY
+               gradMixPhi(i,j,k,2) = phiXZ
+               gradMixPhi(i,j,k,3) = phiYZ          
+            END IF
+
+         END DO
+      END DO
+   END DO
+
+   ! Caluclate the min/max flow
+   DO i = 0,nx
+      DO j = 0,ny
+         DO k = 0,nz
+            IF (phiNB(i,j,k) == 1) THEN  
+               CALL minMax(i,j,k,nx,ny,nz,dx,phi1,grad2Phi,gradMixPhi,F,gridX)
+               k2 = F   
+               phi2(i,j,k) = 3./4.*phi(i,j,k) + 1./4.*phi1(i,j,k) + 1./4.*h1*k2
+            END IF
+
+         END DO
+      END DO
+   END DO
+
+   !****************** Explicit Third Order TVD RK Stage 3 ***********************!
+
+   ! Calculate second derivative flow if it is in the narrow band
+   DO i = 0,nx
+      DO j = 0,ny
+         DO k = 0,nz
+            IF (phiNB(i,j,k) == 1) THEN
+               CALL secondDeriv(i,j,k,nx,ny,nz,dx,phi2,phiXX,phiYY,phiZZ,phiXY,phiXZ,phiYZ,order2)
+               grad2Phi(i,j,k,1) = phiXX
+               grad2Phi(i,j,k,2) = phiYY
+               grad2Phi(i,j,k,3) = phiZZ
+               gradMixPhi(i,j,k,1) = phiXY
+               gradMixPhi(i,j,k,2) = phiXZ
+               gradMixPhi(i,j,k,3) = phiYZ          
+            END IF
+
+         END DO
+      END DO
+   END DO
+
+   ! Caluclate the min/max flow
+   DO i = 0,nx
+      DO j = 0,ny
+         DO k = 0,nz
+            IF (phiNB(i,j,k) == 1) THEN  
+               CALL minMax(i,j,k,nx,ny,nz,dx,phi2,grad2Phi,gradMixPhi,F,gridX)
+               k3 = F 
+               phiN(i,j,k) = 1./3.*phi(i,j,k) + 2./3.*phi2(i,j,k) + 2./3.*h1*k3 
+            END IF
+
+         END DO
+      END DO
+   END DO
+
+   !********************************* RMS ***************************************!
+
+   phiErr = 0.
+
+   ! calculate RMS
+   DO i = 0,nx
+      DO j = 0,ny
+         DO k = 0,nz            
+            phiErr = phiErr + (phi(i,j,k)-phiN(i,j,k))*(phi(i,j,k)-phiN(i,j,k))
+         END DO
+      END DO
+   END DO
+     
+   ! check error
+   phiErr = sqrt(phiErr/(nx*ny*nz))
+   IF (phiErr < 1.E-7) THEN
+      PRINT*, " Min/max time integration has reached steady state "
+      EXIT
+   END IF
+   
+   ! set phi to new value
+   phi = phiN
+   
+   PRINT*, " Iteration: ",n," ", " RMS Error: ",phiErr
+  
+   ! check for a NAN
+   IF (isnan(phiErr)) STOP
+
+   CALL narrowBand(nx,ny,nz,dx,phi,phiNB,phiSB)
+
+END DO
+print*,
+   
+
+!*************************************************************************************!
+! Asymptotic Error
+!*************************************************************************************!
+
+phiErr = 0.
+
+! calculate RMS
+DO i = 0,nx
+   DO j = 0,ny
+      DO k = 0,nz
+         phiErr = phiErr + (phi(i,j,k)-phiO(i,j,k))*(phi(i,j,k)-phiO(i,j,k))
+      END DO
+   END DO
+END DO
+
+phiErr = sqrt(phiErr/(nx*ny*nz))
+
+PRINT*, " Asymptotic Error: ",phiErr
+
+!*************************************************************************************!
+! Output Grad Phi Mag
+!*************************************************************************************!
+
+! grad phi
+order1 = 2
+DO i = 0,nx
+   DO j = 0,ny
+      DO k = 0,nz
+         CALL firstDeriv(i,j,k,nx,ny,nz,dx,phi,phiX,phiY,phiZ,order1,gMM)
+         gradPhiMag(i,j,k) = gMM
+      END DO
+   END DO
+END DO
+
+!*************************************************************************************!
+! Paraview Output
+!*************************************************************************************!
+
+PRINT*, " Writing Out Cartesian Grid to Paraview Format "
+PRINT*, 
+
+! output to Paraview
+WRITE(extent,'(3(A3,I6))')' 0 ',nx,' 0 ',ny,' 0 ',nz
+WRITE(origin,'(3(F20.8,A1))')xLo(1),' ',xLo(2),' ',xLo(3),' '
+WRITE(spacing,'(3(F20.8,A1))')dx,' ',dx,' ',dx,' '
+nbytePhi =(nx+1)**3*24
+offset = 0
+WRITE(coffset,'(I16)')offset
+
+sUnit = 11
+OPEN(UNIT=sUnit,FILE='smoothedDistanceFunction.vti',FORM='unformatted',ACCESS='stream',STATUS='replace')
+WRITE(sUnit)'<?xml version="1.0"?>'//lf
+WRITE(sUnit)'<VTKFile type="ImageData" version="0.1" byte_order="LittleEndian">'//lf
+WRITE(sUnit)'<ImageData WholeExtent="',TRIM(extent),'" Origin="',TRIM(origin),'" Spacing="',TRIM(spacing),'">'//lf
+WRITE(sUnit)'<Piece Extent="',TRIM(extent),'">'//lf
+WRITE(sUnit)'<PointData Scalars="phi">'//lf
+WRITE(sUnit)'<DataArray type="Float64" Name="phi" format="appended" offset="',TRIM(coffset),'"/>'//lf
+WRITE(sUnit)'</PointData>'//lf
+WRITE(sUnit)'</Piece>'//lf
+WRITE(sUnit)'</ImageData>'//lf
+WRITE(sUnit)'<AppendedData encoding="raw">'//lf
+WRITE(sUnit)'_'
+WRITE(sUnit)nbytePhi,(((phi(i,j,k),i=0,nx),j=0,ny),k=0,nz)
+WRITE(sUnit)lf//'</AppendedData>'//lf
+WRITE(sUnit)'</VTKFile>'//lf
+CLOSE(sUnit)
+
+!*************************************************************************************!
+! Convective Flow
+!*************************************************************************************!
+
+iter = 0 !20000
+CFL = .1
+h1 = CFL*dxx
+
+DO n = 1,iter
 
    !****************** Explicit Third Order TVD RK Stage 1 ***********************!
 
@@ -608,7 +809,7 @@ DO n = 1,iter
       DO j = 0,ny
          DO k = 0,nz
             IF (phiNB(i,j,k) == 1) THEN
-               CALL secondDeriv(i,j,k,nx,ny,nz,dx,phi,gradPhi,phiXX,phiYY,phiZZ,phiXY,phiXZ,phiYZ,order2)
+               CALL secondDeriv(i,j,k,nx,ny,nz,dx,phi,phiXX,phiYY,phiZZ,phiXY,phiXZ,phiYZ,order2)
                grad2Phi(i,j,k,1) = phiXX
                grad2Phi(i,j,k,2) = phiYY
                grad2Phi(i,j,k,3) = phiZZ
@@ -627,7 +828,6 @@ DO n = 1,iter
          DO k = 0,nz
             IF (phiNB(i,j,k) == 1) THEN
                CALL firstDeriv(i,j,k,nx,ny,nz,dx,phi,phiX,phiY,phiZ,order1,gMM)   
-               CALL minMax(i,j,k,nx,ny,nz,dx,phi,gradPhi,grad2Phi,gradMixPhi,F,gridX)
                k1 = F !F*gMM !max(F,0.)*dPlus + min(F,0.)*dMinus ! F*gM  
                phi1(i,j,k) = phi(i,j,k) + h1*k1
             END IF
@@ -658,7 +858,7 @@ DO n = 1,iter
       DO j = 0,ny
          DO k = 0,nz
             IF (phiNB(i,j,k) == 1) THEN
-               CALL secondDeriv(i,j,k,nx,ny,nz,dx,phi1,gradPhi,phiXX,phiYY,phiZZ,phiXY,phiXZ,phiYZ,order2)
+               CALL secondDeriv(i,j,k,nx,ny,nz,dx,phi1,phiXX,phiYY,phiZZ,phiXY,phiXZ,phiYZ,order2)
                grad2Phi(i,j,k,1) = phiXX
                grad2Phi(i,j,k,2) = phiYY
                grad2Phi(i,j,k,3) = phiZZ
@@ -677,7 +877,6 @@ DO n = 1,iter
          DO k = 0,nz
             IF (phiNB(i,j,k) == 1) THEN
                CALL firstDeriv(i,j,k,nx,ny,nz,dx,phi1,phiX,phiY,phiZ,order1,gMM)   
-               CALL minMax(i,j,k,nx,ny,nz,dx,phi1,gradPhi,grad2Phi,gradMixPhi,F,gridX)
                k2 = F !F*gMM !max(F,0.)*dPlus + min(F,0.)*dMinus ! F*gM  
                phi2(i,j,k) = 3./4.*phi(i,j,k) + 1./4.*phi1(i,j,k) + 1./4.*h1*k2
             END IF
@@ -707,7 +906,7 @@ DO n = 1,iter
       DO j = 0,ny
          DO k = 0,nz
             IF (phiNB(i,j,k) == 1) THEN
-               CALL secondDeriv(i,j,k,nx,ny,nz,dx,phi2,gradPhi,phiXX,phiYY,phiZZ,phiXY,phiXZ,phiYZ,order2)
+               CALL secondDeriv(i,j,k,nx,ny,nz,dx,phi2,phiXX,phiYY,phiZZ,phiXY,phiXZ,phiYZ,order2)
                grad2Phi(i,j,k,1) = phiXX
                grad2Phi(i,j,k,2) = phiYY
                grad2Phi(i,j,k,3) = phiZZ
@@ -726,7 +925,6 @@ DO n = 1,iter
          DO k = 0,nz
             IF (phiNB(i,j,k) == 1) THEN
                CALL firstDeriv(i,j,k,nx,ny,nz,dx,phi2,phiX,phiY,phiZ,order1,gMM)   
-               CALL minMax(i,j,k,nx,ny,nz,dx,phi2,gradPhi,grad2Phi,gradMixPhi,F,gridX)
                k3 = F !F*gMM !max(F,0.)*dPlus + min(F,0.)*dMinus ! F*gM  
                phiN(i,j,k) = 1./3.*phi(i,j,k) + 2./3.*phi2(i,j,k) + 2./3.*h1*k3 
             END IF
@@ -777,58 +975,12 @@ DO n = 1,iter
 END DO
 print*,
 
-! print out run time
-CALL cpu_time(t4)
-PRINT*, " Total Run Time: ",t4-t1," Seconds"
-PRINT*,
-   
-
-!*************************************************************************************!
-! Asymptotic Error
-!*************************************************************************************!
-
-phiErr = 0.
-
-! calculate RMS
-DO i = 0,nx
-   DO j = 0,ny
-      DO k = 0,nz
-         phiErr = phiErr + (phi(i,j,k)-phiO(i,j,k))*(phi(i,j,k)-phiO(i,j,k))
-      END DO
-   END DO
-END DO
-
-phiErr = sqrt(phiErr/(nx*ny*nz))
-
-PRINT*, " Asymptotic Error: ",phiErr
-
-
-!*************************************************************************************!
-! Output Grad Phi Mag
-!*************************************************************************************!
-
-
-! grad phi
-order1 = 2
-DO i = 0,nx
-   DO j = 0,ny
-      DO k = 0,nz
-         CALL firstDeriv(i,j,k,nx,ny,nz,dx,phi,phiX,phiY,phiZ,order1,gMM)
-         gradPhiMag(i,j,k) = gMM
-      END DO
-   END DO
-END DO
-
-
-
 !*************************************************************************************!
 ! Paraview Output
 !*************************************************************************************!
 
-
 PRINT*, " Writing Out Cartesian Grid to Paraview Format "
 PRINT*, 
-
 
 ! output to Paraview
 WRITE(extent,'(3(A3,I6))')' 0 ',nx,' 0 ',ny,' 0 ',nz
@@ -839,7 +991,7 @@ offset = 0
 WRITE(coffset,'(I16)')offset
 
 sUnit = 11
-OPEN(UNIT=sUnit,FILE='blockAfter.vti',FORM='unformatted',ACCESS='stream',STATUS='replace')
+OPEN(UNIT=sUnit,FILE='convectedDistanceFunction.vti',FORM='unformatted',ACCESS='stream',STATUS='replace')
 WRITE(sUnit)'<?xml version="1.0"?>'//lf
 WRITE(sUnit)'<VTKFile type="ImageData" version="0.1" byte_order="LittleEndian">'//lf
 WRITE(sUnit)'<ImageData WholeExtent="',TRIM(extent),'" Origin="',TRIM(origin),'" Spacing="',TRIM(spacing),'">'//lf
@@ -856,24 +1008,14 @@ WRITE(sUnit)lf//'</AppendedData>'//lf
 WRITE(sUnit)'</VTKFile>'//lf
 CLOSE(sUnit)
 
-sUnit = 12
-OPEN(UNIT=sUnit,FILE='blockAfterGrad.vti',FORM='unformatted',ACCESS='stream',STATUS='replace')
-WRITE(sUnit)'<?xml version="1.0"?>'//lf
-WRITE(sUnit)'<VTKFile type="ImageData" version="0.1" byte_order="LittleEndian">'//lf
-WRITE(sUnit)'<ImageData WholeExtent="',TRIM(extent),'" Origin="',TRIM(origin),'" Spacing="',TRIM(spacing),'">'//lf
-WRITE(sUnit)'<Piece Extent="',TRIM(extent),'">'//lf
-WRITE(sUnit)'<PointData Scalars="phi">'//lf
-WRITE(sUnit)'<DataArray type="Float64" Name="gradPhiMag" format="appended" offset="',TRIM(coffset),'"/>'//lf
-WRITE(sUnit)'</PointData>'//lf
-WRITE(sUnit)'</Piece>'//lf
-WRITE(sUnit)'</ImageData>'//lf
-WRITE(sUnit)'<AppendedData encoding="raw">'//lf
-WRITE(sUnit)'_'
-WRITE(sUnit)nbytePhi,(((gradPhiMag(i,j,k),i=0,nx),j=0,ny),k=0,nz)
-WRITE(sUnit)lf//'</AppendedData>'//lf
-WRITE(sUnit)'</VTKFile>'//lf
-CLOSE(sUnit)
+!*************************************************************************************!
+! Total Run Time
+!*************************************************************************************!
 
+! print out run time
+CALL cpu_time(t4)
+PRINT*, " Total Run Time: ",t4-t1," Seconds"
+PRINT*,
 
 !*************************************************************************************!
 !
@@ -909,14 +1051,11 @@ sgn = pS/sqrt(pS*pS + dxx*dxx*gM)
 
 ENDSUBROUTINE phiSign
 
-
-
 !*************************************************************************************!
 ! Determine Narrow Band
 !*************************************************************************************!
 
 SUBROUTINE narrowBand(nx,ny,nz,dx,phi,phiNB,phiSB)
-
 
 INTEGER,INTENT(IN) :: nx,ny,nz
 INTEGER :: i,j,k
@@ -932,20 +1071,18 @@ DO i = 0,nx
       DO k = 0,nz
          
          ! narrow band
-         IF (abs(phi(i,j,k)) < 5.1*dx) THEN
+         IF (abs(phi(i,j,k)) < 3.1*dx) THEN
             phiNB(i,j,k) = 1
          END IF
 
          ! stencil band
-         IF (abs(phi(i,j,k)) < 10.1*dx) THEN
+         IF (abs(phi(i,j,k)) < 5.1*dx) THEN
             phiSB(i,j,k) = 1
          END IF
 
       END DO
    END DO
 END DO
-
-
 
 END SUBROUTINE narrowBand
 
@@ -955,7 +1092,6 @@ END SUBROUTINE narrowBand
 
 SUBROUTINE firstDeriv(i,j,k,nx,ny,nz,dx,phi,phiX,phiY,phiZ,order,gMM)
 
-
 INTEGER,INTENT(IN) :: i,j,k,order
 REAL,INTENT(IN) :: dx
 REAL,DIMENSION(0:nx,0:ny,0:nz),INTENT(IN) :: phi
@@ -963,7 +1099,6 @@ REAL,INTENT(OUT) :: phiX,phiY,phiZ,gMM
 REAL :: aa1,aa2,aa3,aa4,aa5,aa6,aa7
 INTEGER :: im,jm,km,ip,jp,kp,im2,ip2,jm2,jp2,km2,kp2
 INTEGER :: ip1,jp1,kp1,im1,jm1,km1,ip3,jp3,kp3,im3,jm3,km3
-
 
 IF (order == 2) THEN
   
@@ -986,27 +1121,21 @@ gMM = sqrt(gMM)
 
 END SUBROUTINE firstDeriv
 
-
-
 !*************************************************************************************!
 ! Calculate Second Derivative 
 !*************************************************************************************!
 
-SUBROUTINE secondDeriv(i,j,k,nx,ny,nz,dx,phi,gradPhi,phiXX,phiYY,phiZZ,phiXY,phiXZ,phiYZ,order)
-
-
+SUBROUTINE secondDeriv(i,j,k,nx,ny,nz,dx,phi,phiXX,phiYY,phiZZ,phiXY,phiXZ,phiYZ,order)
 
 REAL :: dxx,dx12
 INTEGER,INTENT(IN) :: i,j,k,order
 REAL,INTENT(IN) :: dx
 REAL,DIMENSION(0:nx,0:ny,0:nz),INTENT(IN) :: phi
-REAL,DIMENSION(0:nx,0:ny,0:nz,3),INTENT(IN) :: gradPhi
 REAL,INTENT(OUT) :: phiXX,phiYY,phiZZ,phiXY,phiXZ,phiYZ
 REAL :: aa1,aa2,aa3,aa4,aa5,aa6,aa7
 REAL :: bb1,bb2,bb3,bb4,bb5,bb6,bb7
 INTEGER :: im,jm,km,ip,jp,kp,im2,ip2,jm2,jp2,km2,kp2
 INTEGER :: ip1,jp1,kp1,im1,jm1,km1,ip3,jp3,kp3,im3,jm3,km3
-
 
 IF (order == 2) THEN
 
@@ -1031,8 +1160,7 @@ ELSE
    PRINT*," This order not set yet "
    STOP
 
-END IF
-     
+END IF   
 
 END SUBROUTINE secondDeriv
 
@@ -1040,20 +1168,16 @@ END SUBROUTINE secondDeriv
 ! Calculate Min/Max Flow
 !*************************************************************************************!
 
-SUBROUTINE minMax(i,j,k,nx,ny,nz,dx,phi,gradPhi,grad2Phi,gradMixPhi,F,gridX)
+SUBROUTINE minMax(i,j,k,nx,ny,nz,dx,phi,grad2Phi,gradMixPhi,F,gridX)
 
 REAL :: dxx,curv,b1,b2,b3,b4,b5,b6,denom,gM,HH
 INTEGER :: h
 INTEGER,INTENT(IN) :: i,j,k
 REAL,INTENT(IN) :: dx
 REAL,DIMENSION(0:nx,0:ny,0:nz),INTENT(IN) :: phi
-REAL,DIMENSION(0:nx,0:ny,0:nz,3),INTENT(IN) :: gradPhi,grad2Phi,gradMixPhi,gridX
+REAL,DIMENSION(0:nx,0:ny,0:nz,3),INTENT(IN) :: grad2Phi,gradMixPhi,gridX
 REAL,INTENT(OUT) :: F
        
-phiX = gradPhi(i,j,k,1)
-phiY = gradPhi(i,j,k,2)
-phiZ = gradPhi(i,j,k,3)
-
 phiXX = grad2Phi(i,j,k,1)
 phiYY = grad2Phi(i,j,k,2)
 phiZZ = grad2Phi(i,j,k,3)
@@ -1062,21 +1186,7 @@ phiXY = gradMixPhi(i,j,k,1)
 phiXZ = gradMixPhi(i,j,k,2)
 phiYZ = gradMixPhi(i,j,k,3)
 
-! gradient magnitude
-gradMag2 = phiX*phiX+phiY*phiY+phiZ*phiZ             
-IF (gradMag2 < 1.E-13) THEN
-   gM = 0.
-ELSE
-   gM = sqrt(gradMag2)
-END IF  
-
-! calculate curvature
-IF (gM < 1.E-13) THEN
-   curv = 0.0;
-ELSE 
-   curv = phiXX+phiYY+phiZZ
-END IF
-
+curv = phiXX+phiYY+phiZZ
 
 ! this allows you to set different filter sizes depending on location
 !IF (gridX(i,j,k,1) > 0.) THEN
@@ -1085,13 +1195,11 @@ END IF
    h = 1
 !END IF
 
-
 ! threshold value
 thresh = 0.      
 
 pAve = phi(i,j,k)+phi(i-h,j,k)+phi(i+h,j,k)+phi(i,j+h,k)+phi(i,j-h,k)+phi(i,j,k+h)+phi(i,j,k-h)
 pAve = pAve/7.
-
 
 ! min/max switch
 IF (pAve < thresh) THEN
@@ -1100,9 +1208,7 @@ ELSE
    F = max(curv,0.0)
 END IF
 
-
 END SUBROUTINE minMax
-
 
 !*************************************************************************************!
 ! Calculate WENO5 derivatives
@@ -1264,7 +1370,6 @@ IF ((i>3).AND.(i<nx-4).AND.(j>3).AND.(j<ny-4).AND.(k>3).AND.(k<nz-4)) THEN
    e = 1./12.*(-p1+7.*p2+7.*p3-p4) - PWm
    f = 1./12.*(-p1+7.*p2+7.*p3-p4) + PWp
 
-
 ELSE
 
    ! set plus and minus integers
@@ -1322,10 +1427,7 @@ dPlus = sqrt(dPlus)
 dMinus = min(a,0.)**2+max(b,0.)**2+min(c,0.)**2+max(d,0.)**2+min(e,0.)**2+max(f,0.)**2
 dMinus = sqrt(dMinus)
 
-
 END SUBROUTINE weno 
-
-
 
 !*************************************************************************************!
 ! End of Code 
