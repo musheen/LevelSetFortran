@@ -19,3 +19,7 @@ Couple of notes:
 - The .stl files need to be clean. No pierced faces or dirty CAD.
 - Currently uses .stl only right now. I would love to add in other CAD file types, but not a priority currently.
 - Current code is pretty messy, and a lot of unused routines. I will try and clean it up later when I have time.
+
+Feel free to contact me if you spot any bugs or have any changes you recommened. Email me at: oisin.tong@gmail.com 
+
+If this is useful to you in your work/research, I would love to hear about it. 
