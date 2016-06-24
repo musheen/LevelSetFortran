@@ -8,9 +8,9 @@ PROGRAM set3d
 !
 ! Version: 3.0  
 !
-! Date: 23/6/2016
+! Date: 24/6/2016
 !
-! Type: H-J WENO 5 Serial Explicit TVD R-K Level Set Solver
+! Type: H-J WENO 5 Serial Explicit Gauss Sidel Level Set Solver
 !
 !*************************************************************************************!
 
@@ -45,7 +45,6 @@ REAL*4,ALLOCATABLE,DIMENSION(:,:) :: normals,triangles,nodesT
 REAL,ALLOCATABLE,DIMENSION(:,:,:,:) :: gridX,grad2Phi,gradMixPhi
 REAL,ALLOCATABLE,DIMENSION(:,:,:,:,:) :: gradPhi
 INTEGER :: iargc
-REAL,ALLOCATABLE,DIMENSION(:,:) :: q1S,q2S,q3S,q4S,q5S,q6S,q7S,q8S
 INTEGER,DIMENSION(8) :: qq
 
 
@@ -373,7 +372,7 @@ iter = 10000 !1500 ! 10000
 dxx = dx/sqrt(ddx*ddx+ddy*ddy+ddz*ddz)
 
 ! time step
-CFL = .1
+CFL = 1.
 h = CFL*dxx
 
 
@@ -460,7 +459,7 @@ h1 = CFL*dxx
 
 DO n = 1,iter
 
-   !****************** Explicit Third Order TVD RK Stage 1 ***********************!
+   !******************************* Gauss Sidel **********************************!
 
    ! Calculate second derivative flow if it is in the narrow band
    DO i = 0,nx
@@ -487,75 +486,7 @@ DO n = 1,iter
             IF (phiNB(i,j,k) == 1) THEN 
                CALL minMax(i,j,k,nx,ny,nz,dx,phi,grad2Phi,gradMixPhi,F,gridX)
                k1 = F  
-               phi1(i,j,k) = phi(i,j,k) + h1*k1
-            END IF
-
-         END DO
-      END DO
-   END DO
-
-   !****************** Explicit Third Order TVD RK Stage 2 ***********************!
-
-   ! Calculate second derivative flow if it is in the narrow band
-   DO i = 0,nx
-      DO j = 0,ny
-         DO k = 0,nz
-            IF (phiNB(i,j,k) == 1) THEN
-               CALL secondDeriv(i,j,k,nx,ny,nz,dx,phi1,phiXX,phiYY,phiZZ,phiXY,phiXZ,phiYZ,order2)
-               grad2Phi(i,j,k,1) = phiXX
-               grad2Phi(i,j,k,2) = phiYY
-               grad2Phi(i,j,k,3) = phiZZ
-               gradMixPhi(i,j,k,1) = phiXY
-               gradMixPhi(i,j,k,2) = phiXZ
-               gradMixPhi(i,j,k,3) = phiYZ          
-            END IF
-
-         END DO
-      END DO
-   END DO
-
-   ! Caluclate the min/max flow
-   DO i = 0,nx
-      DO j = 0,ny
-         DO k = 0,nz
-            IF (phiNB(i,j,k) == 1) THEN  
-               CALL minMax(i,j,k,nx,ny,nz,dx,phi1,grad2Phi,gradMixPhi,F,gridX)
-               k2 = F   
-               phi2(i,j,k) = 3./4.*phi(i,j,k) + 1./4.*phi1(i,j,k) + 1./4.*h1*k2
-            END IF
-
-         END DO
-      END DO
-   END DO
-
-   !****************** Explicit Third Order TVD RK Stage 3 ***********************!
-
-   ! Calculate second derivative flow if it is in the narrow band
-   DO i = 0,nx
-      DO j = 0,ny
-         DO k = 0,nz
-            IF (phiNB(i,j,k) == 1) THEN
-               CALL secondDeriv(i,j,k,nx,ny,nz,dx,phi2,phiXX,phiYY,phiZZ,phiXY,phiXZ,phiYZ,order2)
-               grad2Phi(i,j,k,1) = phiXX
-               grad2Phi(i,j,k,2) = phiYY
-               grad2Phi(i,j,k,3) = phiZZ
-               gradMixPhi(i,j,k,1) = phiXY
-               gradMixPhi(i,j,k,2) = phiXZ
-               gradMixPhi(i,j,k,3) = phiYZ          
-            END IF
-
-         END DO
-      END DO
-   END DO
-
-   ! Caluclate the min/max flow
-   DO i = 0,nx
-      DO j = 0,ny
-         DO k = 0,nz
-            IF (phiNB(i,j,k) == 1) THEN  
-               CALL minMax(i,j,k,nx,ny,nz,dx,phi2,grad2Phi,gradMixPhi,F,gridX)
-               k3 = F 
-               phiN(i,j,k) = 1./3.*phi(i,j,k) + 2./3.*phi2(i,j,k) + 2./3.*h1*k3 
+               phi(i,j,k) = phi(i,j,k) + h1*k1
             END IF
 
          END DO
@@ -583,7 +514,7 @@ DO n = 1,iter
    END IF
    
    ! set phi to new value
-   phi = phiN
+   phiN = phi
    
    PRINT*, " Iteration: ",n," ", " RMS Error: ",phiErr
   

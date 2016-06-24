@@ -490,6 +490,7 @@ REAL :: sgn
 
 ! set the phi sign array
 phiS = phi
+phiN = phi
 
 ! iterate
 DO n=0,iter
@@ -502,7 +503,7 @@ DO n=0,iter
             CALL weno(gM,i,j,k,nx,ny,nz,dx,phi,gradPhi,gradPhiMag)
             CALL phiSign(phiS(i,j,k),sgn,dx,gM)
             k1  = sgn*(1.-gM) 
-            phiN(i,j,k) = phi(i,j,k)+h*k1
+            phi(i,j,k) = phi(i,j,k)+h*k1
          END DO
       END DO
    END DO
@@ -513,36 +514,36 @@ DO n=0,iter
          DO k = 0,nz
 
             ! corners
-            phiN(0,0,0) = phi(1,1,1) + dx 
-            phiN(nx,0,0) = phi(nx-1,1,1) + dx
-            phiN(0,ny,0) = phi(1,ny-1,1) + dx 
-            phiN(0,0,nz) = phi(1,1,nz-1) + dx 
-            phiN(nx,ny,0) = phi(nx-1,ny-1,1) + dx
-            phiN(0,ny,nz) = phi(1,ny-1,nz-1) + dx 
-            phiN(nx,0,nz) = phi(nx-1,1,nz-1) + dx 
-            phiN(nx,ny,nz) = phi(nx-1,ny-1,nz-1) + dx 
+            phi(0,0,0) = phi(1,1,1) + dx 
+            phi(nx,0,0) = phi(nx-1,1,1) + dx
+            phi(0,ny,0) = phi(1,ny-1,1) + dx 
+            phi(0,0,nz) = phi(1,1,nz-1) + dx 
+            phi(nx,ny,0) = phi(nx-1,ny-1,1) + dx
+            phi(0,ny,nz) = phi(1,ny-1,nz-1) + dx 
+            phi(nx,0,nz) = phi(nx-1,1,nz-1) + dx 
+            phi(nx,ny,nz) = phi(nx-1,ny-1,nz-1) + dx 
 
             ! edges
-            phiN(i,0,0) = phi(i,1,1) + dx 
-            phiN(0,j,0) = phi(1,j,1) + dx 
-            phiN(0,0,k) = phi(1,1,k) + dx 
-            phiN(i,ny,nz) = phi(i,ny-1,nz-1) + dx 
-            phiN(nx,j,nz) = phi(nx-1,j,nz-1) + dx 
-            phiN(nx,ny,k) = phi(nx-1,ny-1,k) + dx 
-            phiN(i,0,nz) = phi(i,1,nz-1) + dx 
-            phiN(nx,j,0) = phi(nx-1,j,1) + dx 
-            phiN(nx,0,k) = phi(nx-1,1,k) + dx
-            phiN(i,ny,0) = phi(i,ny-1,1) + dx 
-            phiN(0,j,nz) = phi(1,j,nz-1) + dx 
-            phiN(0,ny,k) = phi(1,ny-1,k) + dx 
+            phi(i,0,0) = phi(i,1,1) + dx 
+            phi(0,j,0) = phi(1,j,1) + dx 
+            phi(0,0,k) = phi(1,1,k) + dx 
+            phi(i,ny,nz) = phi(i,ny-1,nz-1) + dx 
+            phi(nx,j,nz) = phi(nx-1,j,nz-1) + dx 
+            phi(nx,ny,k) = phi(nx-1,ny-1,k) + dx 
+            phi(i,0,nz) = phi(i,1,nz-1) + dx 
+            phi(nx,j,0) = phi(nx-1,j,1) + dx 
+            phi(nx,0,k) = phi(nx-1,1,k) + dx
+            phi(i,ny,0) = phi(i,ny-1,1) + dx 
+            phi(0,j,nz) = phi(1,j,nz-1) + dx 
+            phi(0,ny,k) = phi(1,ny-1,k) + dx 
             
             ! faces
-            phiN(0,j,k) = phi(1,j,k) + dx 
-            phiN(i,0,k) = phi(i,1,k) + dx 
-            phiN(i,j,0) = phi(i,j,1) + dx  
-            phiN(nx,j,k) = phi(nx-1,j,k) + dx 
-            phiN(i,ny,k) = phi(i,ny-1,k) + dx             
-            phiN(i,j,nz) = phi(i,j,nz-1) + dx
+            phi(0,j,k) = phi(1,j,k) + dx 
+            phi(i,0,k) = phi(i,1,k) + dx 
+            phi(i,j,0) = phi(i,j,1) + dx  
+            phi(nx,j,k) = phi(nx-1,j,k) + dx 
+            phi(i,ny,k) = phi(i,ny-1,k) + dx             
+            phi(i,j,nz) = phi(i,j,nz-1) + dx
 
          END DO
       END DO
@@ -570,7 +571,7 @@ DO n=0,iter
    END IF
 
    ! set new phi 
-   phi = phiN
+   phiN = phi
 
    PRINT*, " Iteration: ",n," ", " RMS Error: ",phiErr
 
