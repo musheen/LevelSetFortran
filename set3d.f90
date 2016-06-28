@@ -2,15 +2,15 @@ PROGRAM set3d
 
 !*************************************************************************************!
 !
-! Convective Flow and Min/Max Level Set Solver
+! Min/Max Level Set Solver
 !
 ! Author: Oisin Tong
 !
 ! Version: 3.0  
 !
-! Date: 24/6/2016
+! Date: 28/6/2016
 !
-! Type: H-J WENO 5 Serial Explicit Gauss Sidel Level Set Solver
+! Type: H-J WENO 5 Serial Explicit Gauss Seidel Level Set Solver
 !
 !*************************************************************************************!
 
@@ -26,131 +26,60 @@ INTEGER :: j,sUnit,nbytePhi,offset,nxs,n1,n2,n3,fN,im,jm,km,ip,jp,kp,dd,nBndElem
 INTEGER :: iter,nx,ny,nz,qG,nn,counter,orderUp,order1,order2,reIter,order,nBndComp
 REAL :: a0,a1,a2,a3,a4,t,xLo(3),xHi(3),xs,ys,yp,ypp,g,gp,x0,x1,dxs,dPlus,dMinus
 REAL :: pX1,pX2,pX3,pY1,pY2,pY3,pZ1,pZ2,pZ3,gX,gY,gZ,dis,minD,k1,h1,k2,k3,k4,t5
-REAL :: B1,B2,B3,C1,C2,C3,pSx,pSy,pSz,pS,pX,pY,pZ,sgn,ddx,ddy,ddz,gM,gMM,phiErrS
+REAL :: B1,B2,B3,C1,C2,C3,pSx,pSy,pSz,pS,pX,pY,pZ,sgn,ddx,ddy,ddz,gM,phiErrS
 REAL :: y1,z1,maxX,maxY,maxZ,minX,minY,minZ,h,a,b,c,d,e,f,phiErr,gradMag2,x,y,z,dxx
 REAL :: dx,cX,cY,cZ,t1,t2,t3,t4,bx,phiX,phiY,phiZ,phiXX,phiYY,phiZZ,phiXZ,phiXY,phiYZ
 REAL :: pi,aa,bb,period,ax,ay,az,axy,ayz,axz,bxy,by,bz,byz,bxz,cxy,cyz,cxz,pp,CFL
-REAL :: aaa,bbb,ccc,ax1,ax2,ay1,ay2,az1,az2,Dijk,Fx,Fy,Fz,rTime
-REAL,ALLOCATABLE,DIMENSION(:,:,:) :: phi,phiS,phiN,gradPhiMag,phiE,phi1,phi2,phi3,phiO,S
+REAL :: aaa,bbb,ccc,ax1,ax2,ay1,ay2,az1,az2,Dijk,Fx,Fy,Fz,rTime,surfErr
+REAL,ALLOCATABLE,DIMENSION(:,:,:) :: phi,phiS,phiN,gradPhiMag,phiE,phi1,phi2,phi3,phiO
+REAL,ALLOCATABLE,DIMENSION(:,:,:) :: S,curv,Fcurv
 INTEGER,ALLOCATABLE,DIMENSION(:,:,:) :: phiSB,phiNB
-REAL,ALLOCATABLE,DIMENSION(:,:) :: centroid,surfX,bndNormal
+REAL,ALLOCATABLE,DIMENSION(:) :: curvSurf
+REAL,ALLOCATABLE,DIMENSION(:,:) :: centroid,surfX,bndNormal,gradPhiSurf,surfXN,surfXO
 CHARACTER(LEN=1) :: lf=char(10)
 CHARACTER(LEN=1024) :: extent,origin,spacing,coffset
 INTEGER*4,ALLOCATABLE,DIMENSION(:,:) :: surfElem
 INTEGER,ALLOCATABLE,DIMENSION(:) :: surfElemTag,surfOrder
-CHARACTER header*80,filename*80
-INTEGER*2 padding
-INTEGER*4 ntri,iunit,nSurfNode,k,i,n,p,kk,share,nSurfElem
-REAL*4,ALLOCATABLE,DIMENSION(:,:) :: normals,triangles,nodesT
-REAL,ALLOCATABLE,DIMENSION(:,:,:,:) :: gridX,grad2Phi,gradMixPhi
-REAL,ALLOCATABLE,DIMENSION(:,:,:,:,:) :: gradPhi
-INTEGER :: iargc
-INTEGER,DIMENSION(8) :: qq
-
+CHARACTER :: filename*80,meshname*80,endname*80,filetype*80
+INTEGER*4 :: nSurfNode,k,i,n,p,kk,share,nSurfElem,length
+REAL,ALLOCATABLE,DIMENSION(:,:,:,:) :: gridX,grad2Phi,gradMixPhi,gradPhi
 
 !*************************************************************************************!
-! Import STL Data
+! Set Initialization and Import Data
 !*************************************************************************************!
 
 ! start system time
 CALL cpu_time(t1)
 
-! import .stl data
-call getarg(1,filename)
+! import data
+CALL getarg(1,filename)
+filetype = 'stl'
 
-order = 1
+! get the file type 
+length = len_trim(filename)
+endname = '.s3d'
 
-PRINT*,
-PRINT*, " Reading in .stl Mesh "
-PRINT*,
 
-iunit=13
-OPEN(unit=iunit,file=filename,status='old',access='stream',form='unformatted')
+IF (filetype == 'stl') THEN
 
-! read .stl header info 
-READ(iunit) header
-READ(iunit) ntri
-   
-ALLOCATE(normals(3,ntri))
-ALLOCATE(triangles(3,ntri*3))
-ALLOCATE(surfELem(ntri,3))
- 
-! read .stl data
-k=1
-DO i = 1,ntri
-   READ(iunit) normals(1,i),normals(2,i),normals(3,i)
-   READ(iunit) triangles(1,k),triangles(2,k),triangles(3,k)
-   READ(iunit) triangles(1,k+1),triangles(2,k+1),triangles(3,k+1)
-   READ(iunit) triangles(1,k+2),triangles(2,k+2),triangles(3,k+2)
-   READ(iunit) padding
-  k=k+3
-END DO
-  
-CLOSE(iunit)
+   ! remove filetyple and add .s3d
+   meshname = filename(1:length-len_trim(filetype)-1)//endname
 
-ALLOCATE(nodesT(3,ntri*5))
-nSurfElem = ntri
-ALLOCATE(surfOrder(nSurfElem))
-ALLOCATE(surfElemTag(nSurfElem))
+   CALL stlRead(surfX,nSurfNode,surfElem,filename,nSurfElem,surfElemTag,surfOrder,nBndComp,nBndElem,bndNormal)
 
-surfOrder = 1
-surfElemTag = 0
+ELSEIF (filetype == 's3d') THEN
 
-! search through data and put into surfX and surfElem style arrays
-DO k = 1,ntri
-  nodesT(1,k) = 1000000. 
-  nodesT(2,k) = 1000000. 
-  nodesT(3,k) = 1000000. 
-END DO
+   ! remove filetype and add .s3d
+   meshname = filename(1:length-len_trim(filetype)-1)//endname
 
-! eliminate repeated nodes and clean up arrays
-i = 1
-nSurfNode = 3
-k = 0;
-DO n = 1,ntri
-   DO p = 1,3
-      share = 0 
-      DO kk = 1,nSurfNode
-         IF ((abs(nodesT(1,kk) - triangles(1,i)) < 1.e-13) .AND. &
-             (abs(nodesT(2,kk) - triangles(2,i)) < 1.e-13) .AND. &
-             (abs(nodesT(3,kk) - triangles(3,i)) < 1.e-13)) THEN
-            share = kk
-            EXIT
-         END IF
-      END DO
-      IF (share > 0) THEN
-         surfElem(n,p) = share
-      ELSE
-         k             = k+1 
-         nodesT(:,k)   = triangles(:,i)
-         surfElem(n,p) = k !1-based
-      END IF
-      i = i+1
-   END DO
-   nSurfNode = k 
-END DO
+   CALL s3dRead(surfX,nSurfNode,surfElem,filename,nSurfElem,surfElemTag,surfOrder,nBndComp,nBndElem,bndNormal)
 
-! allocate surfX
-ALLOCATE(surfX(nSurfNode,3))
+ELSE
 
-! fill in surface node data 
-DO k = 1,nSurfNode
-   surfX(k,1) = nodesT(1,k)
-   surfX(k,2) = nodesT(2,k)
-   surfX(k,3) = nodesT(3,k)
-END DO
+   print*, " File type not recognised "
+   STOP
 
-! deallocate unnecessary data
-DEALLOCATE(nodesT)
-DEALLOCATE(triangles)
-DEALLOCATE(normals)
-
-nBndElem = 0
-nBndComp = 1
-
-ALLOCATE(bndNormal(nBndComp,3))
-
-bndNormal = 0.
+END IF
 
 
 !*************************************************************************************!
@@ -208,7 +137,7 @@ ddy = maxY-minY
 ddz = maxZ-minZ
 
 ! set dx
-dx = 0.05
+dx = 0.025
 
 ! define Cartesian grid
 nx = ceiling((maxX-minX)/dx)+1;
@@ -357,7 +286,7 @@ ALLOCATE(phi1(0:nx,0:ny,0:nz))
 ALLOCATE(phi2(0:nx,0:ny,0:nz))
 ALLOCATE(phi3(0:nx,0:ny,0:nz))
 ALLOCATE(S(0:nx,0:ny,0:nz))
-ALLOCATE(gradPhi(0:nx,0:ny,0:nz,3,2))
+ALLOCATE(gradPhi(0:nx,0:ny,0:nz,3))
 
 PRINT*, " Level Set Time Integration "
 PRINT*, 
@@ -434,7 +363,9 @@ CALL narrowBand(nx,ny,nz,dx,phi,phiNB,phiSB)
 ! Initialize Gradients
 !*************************************************************************************!
 
-
+ALLOCATE(curvSurf(nSurfNode))
+ALLOCATE(gradPhiSurf(nSurfNode,3))
+ALLOCATE(curv(0:nx,0:ny,0:nz))
 ALLOCATE(grad2Phi(0:nx,0:ny,0:nz,3))
 ALLOCATE(gradMixPhi(0:nx,0:ny,0:nz,3))
 
@@ -446,20 +377,23 @@ gradPhiMag = 0.
 phiN = phi
 
 orderUp = 1
-order1 = 2
+order1 = 1
 order2 = 2
+
+surfXO = surfX
+surfXN = surfX
 
 !*************************************************************************************!
 ! Min/Max Flow
 !*************************************************************************************!
 
-iter = 2000 !20000
+iter = 10000 !20000
 CFL = .01
 h1 = CFL*dxx
 
 DO n = 1,iter
 
-   !******************************* Gauss Sidel **********************************!
+   !******************************* Gauss Seidel *********************************!
 
    ! Calculate second derivative flow if it is in the narrow band
    DO i = 0,nx
@@ -485,7 +419,10 @@ DO n = 1,iter
          DO k = 0,nz
             IF (phiNB(i,j,k) == 1) THEN 
                CALL minMax(i,j,k,nx,ny,nz,dx,phi,grad2Phi,gradMixPhi,F,gridX)
+               CALL weno(gM,i,j,k,nx,ny,nz,dx,phi,gradPhi,gradPhiMag)
                k1 = F  
+               curv(i,j,k) = F/gM
+               IF (gM < 1.E-13) curv(i,j,k) = 0
                phi(i,j,k) = phi(i,j,k) + h1*k1
             END IF
 
@@ -493,9 +430,17 @@ DO n = 1,iter
       END DO
    END DO
 
+   CALL setSurfCurv(xLo,nx,ny,nz,dx,curvSurf,curv,nSurfNode,surfX,gradPhiSurf,gradPhi)
+
+   DO k = 1,nSurfNode
+         surfXN(k,:) = surfX(k,:) + h1*curvSurf(k)*gradPhiSurf(k,:)
+   END DO
+ 
+
    !********************************* RMS ***************************************!
 
    phiErr = 0.
+   surfErr = 0.
 
    ! calculate RMS
    DO i = 0,nx
@@ -505,18 +450,27 @@ DO n = 1,iter
          END DO
       END DO
    END DO
+  
+   ! calculate RMS
+   DO k = 1,nSurfNode  
+      DO p = 1,3         
+         surfErr = surfErr + (surfX(k,p)-surfXN(k,p))*(surfX(k,p)-surfXN(k,p))
+      END DO
+   END DO
      
    ! check error
    phiErr = sqrt(phiErr/(nx*ny*nz))
-   IF (phiErr < 1.E-7) THEN
+   surfErr = sqrt(surfErr/nSurfNode)
+   IF ((phiErr < 1.E-7).AND.(surfErr < 1.E-7)) THEN
       PRINT*, " Min/max time integration has reached steady state "
       EXIT
    END IF
    
    ! set phi to new value
    phiN = phi
+   surfX = surfXN
    
-   PRINT*, " Iteration: ",n," ", " RMS Error: ",phiErr
+   PRINT*, " Iteration: ",n," ", " RMS Error: ",phiErr, " Surface RMS Error: ",surfErr
   
    ! check for a NAN
    IF (isnan(phiErr)) STOP
@@ -525,7 +479,6 @@ DO n = 1,iter
 
 END DO
 print*,
-   
 
 !*************************************************************************************!
 ! Asymptotic Error
@@ -555,8 +508,8 @@ order1 = 2
 DO i = 0,nx
    DO j = 0,ny
       DO k = 0,nz
-         CALL firstDeriv(i,j,k,nx,ny,nz,dx,phi,phiX,phiY,phiZ,order1,gMM)
-         gradPhiMag(i,j,k) = gMM
+         CALL firstDeriv(i,j,k,nx,ny,nz,dx,phi,phiX,phiY,phiZ,order1,gM,gradPhi)
+         gradPhiMag(i,j,k) = gM
       END DO
    END DO
 END DO
@@ -607,6 +560,11 @@ h = CFL*dxx
 
 CALL reinit(phi,gradPhi,gradPhiMag,nx,ny,nz,iter,dx,h)
 
+!*************************************************************************************!
+! Strand Generation
+!*************************************************************************************!
+
+! Robbie, add your strand generation stuff here.
 
 !*************************************************************************************!
 ! Print Out .S3D Format
@@ -625,28 +583,24 @@ iu = 14
 
 ! write to mesh file
 
-OPEN(iu,FILE=filename,STATUS='replace',FORM='formatted')
+OPEN(iu,FILE=meshname,STATUS='replace',FORM='formatted')
 WRITE(iu,*)nSurfElem,nSurfNode,nBndElem,nBndComp
 DO k=1,nSurfElem
    WRITE(iu,*)surfOrder(k),surfElem(k,:),surfElemTag(k)
 END DO
 DO n=1,nSurfNode
-   WRITE(iu,*)surfX(n,:)
+   WRITE(iu,*)surfXN(n,:)
 END DO
 DO n=1,nBndComp
    WRITE(iu,*)bndNormal(n,:)
 END DO
 CLOSE(iu)
 
-
 WRITE(*,'(A,A)')  'Successfully wrote: ', filename
-
 
 !*************************************************************************************!
 ! Deallocate
 !*************************************************************************************!
-
-
 
 DEALLOCATE(phi, &
            gradPhi, &
@@ -668,8 +622,10 @@ DEALLOCATE(phi, &
            surfElemTag, &
            bndNormal, &
            surfX, &
+           surfXO, &
+           surfXN, &
            gridX, &
-           centroid      )
+           centroid )
 
 
 !*************************************************************************************!
