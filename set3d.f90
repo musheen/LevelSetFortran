@@ -572,7 +572,6 @@ DO k = 1,nSurfElem
    END DO
 END DO
 
-filename = "cube.mesh"
 iu = 14
 
 ! write to mesh file
