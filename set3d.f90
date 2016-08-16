@@ -34,8 +34,8 @@ REAL :: aaa,bbb,ccc,ax1,ax2,ay1,ay2,az1,az2,Dijk,Fx,Fy,Fz,rTime,surfErr
 REAL,ALLOCATABLE,DIMENSION(:,:,:) :: phi,phiS,phiN,gradPhiMag,phiE,phi1,phi2,phi3,phiO
 REAL,ALLOCATABLE,DIMENSION(:,:,:) :: S,curv,Fcurv
 INTEGER,ALLOCATABLE,DIMENSION(:,:,:) :: phiSB,phiNB
-REAL,ALLOCATABLE,DIMENSION(:) :: curvSurf
-REAL,ALLOCATABLE,DIMENSION(:,:) :: centroid,surfX,bndNormal,gradPhiSurf,surfXN,surfXO
+REAL,ALLOCATABLE,DIMENSION(:) :: curvSurf,phiSurf
+REAL,ALLOCATABLE,DIMENSION(:,:) :: centroid,surfX,bndNormal,gradPhiSurf,surfXN,surfXO,surfXX
 CHARACTER(LEN=1) :: lf=char(10)
 CHARACTER(LEN=1024) :: extent,origin,spacing,coffset
 INTEGER*4,ALLOCATABLE,DIMENSION(:,:) :: surfElem
@@ -137,7 +137,7 @@ ddy = maxY-minY
 ddz = maxZ-minZ
 
 ! set dx
-dx = 0.025
+dx = 0.05
 
 ! define Cartesian grid
 nx = ceiling((maxX-minX)/dx)+1;
@@ -301,7 +301,7 @@ iter = 10000 !1500 ! 10000
 dxx = dx/sqrt(ddx*ddx+ddy*ddy+ddz*ddz)
 
 ! time step
-CFL = 1.
+CFL = .1
 h = CFL*dxx
 
 
@@ -428,19 +428,11 @@ DO n = 1,iter
 
          END DO
       END DO
-   END DO
-
-   CALL setSurfCurv(xLo,nx,ny,nz,dx,curvSurf,curv,nSurfNode,surfX,gradPhiSurf,gradPhi)
-
-   DO k = 1,nSurfNode
-         surfXN(k,:) = surfX(k,:) + h1*curvSurf(k)*gradPhiSurf(k,:)
-   END DO
- 
+   END DO 
 
    !********************************* RMS ***************************************!
 
    phiErr = 0.
-   surfErr = 0.
 
    ! calculate RMS
    DO i = 0,nx
@@ -450,35 +442,64 @@ DO n = 1,iter
          END DO
       END DO
    END DO
-  
-   ! calculate RMS
-   DO k = 1,nSurfNode  
-      DO p = 1,3         
-         surfErr = surfErr + (surfX(k,p)-surfXN(k,p))*(surfX(k,p)-surfXN(k,p))
-      END DO
-   END DO
      
    ! check error
    phiErr = sqrt(phiErr/(nx*ny*nz))
-   surfErr = sqrt(surfErr/nSurfNode)
-   IF ((phiErr < 1.E-7).AND.(surfErr < 1.E-7)) THEN
+   IF (phiErr < 1.E-7) THEN
       PRINT*, " Min/max time integration has reached steady state "
       EXIT
    END IF
    
    ! set phi to new value
    phiN = phi
-   surfX = surfXN
    
-   PRINT*, " Iteration: ",n," ", " RMS Error: ",phiErr, " Surface RMS Error: ",surfErr
-  
+   PRINT*, " Iteration: ",n," ", " RMS Error: ",phiErr  
    ! check for a NAN
    IF (isnan(phiErr)) STOP
 
    CALL narrowBand(nx,ny,nz,dx,phi,phiNB,phiSB)
 
 END DO
-print*,
+PRINT*,
+
+
+!*************************************************************************************!
+! Advect Nodes
+!*************************************************************************************!
+
+order1 = 8
+DO i = 0,nx
+   DO j = 0,ny
+      DO k = 0,nz
+         IF (phiSB(i,j,k) == 1) THEN 
+            CALL firstDeriv(i,j,k,nx,ny,nz,dx,phi,phiX,phiY,phiZ,order1,gM,gradPhi)
+         END IF
+      END DO
+   END DO
+END DO
+
+ALLOCATE(phiSurf(nSurfNode))
+ALLOCATE(surfXX(nSurfNode,3))
+phiSurf = 0.
+
+surfXX = surfX
+
+CALL setPhiSurf(xLo,nx,ny,nz,dx,phiSurf,phi,nSurfNode,surfXX,gradPhiSurf,gradPhi)
+
+iter = 1000
+
+DO k = 1,iter
+   DO n = 1,nSurfNode
+      IF (phiSurf(n) > 1E-13) THEN
+
+         surfXX(n,:) = surfXX(n,:) + phiSurf(n)*gradPhiSurf(n,:)
+         CALL setPhiSurf(xLo,nx,ny,nz,dx,phiSurf,phi,nSurfNode,surfXX,gradPhiSurf,gradPhi)
+
+      END IF
+
+   END DO
+END DO
+
 
 !*************************************************************************************!
 ! Asymptotic Error
@@ -572,6 +593,7 @@ DO k = 1,nSurfElem
    END DO
 END DO
 
+filename = "cube.mesh"
 iu = 14
 
 ! write to mesh file
@@ -582,7 +604,7 @@ DO k=1,nSurfElem
    WRITE(iu,*)surfOrder(k),surfElem(k,:),surfElemTag(k)
 END DO
 DO n=1,nSurfNode
-   WRITE(iu,*)surfXN(n,:)
+   WRITE(iu,*)surfXX(n,:)
 END DO
 DO n=1,nBndComp
    WRITE(iu,*)bndNormal(n,:)
@@ -615,6 +637,7 @@ DEALLOCATE(phi, &
            surfElemTag, &
            bndNormal, &
            surfX, &
+           surfXX, &
            surfXO, &
            surfXN, &
            gridX, &

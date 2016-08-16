@@ -1049,6 +1049,126 @@ END DO
 
 END SUBROUTINE setSurfCurv
 
+
+!*************************************************************************************!
+! Trilinear interpolation for phi
+!*************************************************************************************!
+
+SUBROUTINE setPhiSurf(xLo,nx,ny,nz,dx,phiSurf,phi,nSurfNode,surfX,gradPhiSurf,gradPhi)
+
+INTEGER,INTENT(IN) :: nSurfNode,nx,ny,nz
+REAL,INTENT(IN) :: dx
+REAL,DIMENSION(3),INTENT(IN) :: xLo
+REAL,DIMENSION(0:nx,0:ny,0:nz),INTENT(IN) :: phi
+REAL,DIMENSION(0:nx,0:ny,0:nz,3),INTENT(IN) :: gradPhi
+REAL,DIMENSION(nSurfNode),INTENT(INOUT) :: phiSurf
+REAL,DIMENSION(nSurfNode,3),INTENT(IN) :: surfX
+REAL,DIMENSION(nSurfNode,3),INTENT(OUT) :: gradPhiSurf
+INTEGER :: n,i1,j1,k1,i0,j0,k0
+REAL :: x,y,z,xd,yd,zd,c00,c10,c01,c11,c0,c1,x1,y1,z1,x0,y0,z0
+REAL :: gradPhiMag,gradMag2,minX,minY,minZ
+
+minX = xLo(1)
+minY = xLo(2)
+minZ = xLo(3)
+
+
+DO n = 1,nSurfNode
+
+   x = surfX(n,1)
+   y = surfX(n,2)
+   z = surfX(n,3)
+
+   i0 = floor((x-minX)/dx)
+   j0 = floor((y-minY)/dx)
+   k0 = floor((z-minZ)/dx)
+
+   x0 = i0*dx + minX
+   y0 = j0*dx + minY
+   z0 = k0*dx + minZ
+
+   i1 = i0+1
+   j1 = j0+1
+   k1 = k0+1
+
+   x1 = i1*dx + minX
+   y1 = j1*dx + minY
+   z1 = k1*dx + minZ
+
+   xd = (x-x0)/(x1-x0)
+   yd = (y-y0)/(y1-y0)
+   zd = (z-z0)/(z1-z0)
+
+   c00 = phi(i0,j0,k0)*(1.-xd) + phi(i1,j0,k0)*xd
+   c10 = phi(i0,j1,k0)*(1.-xd) + phi(i1,j1,k0)*xd
+   c01 = phi(i0,j0,k1)*(1.-xd) + phi(i1,j0,k1)*xd
+   c11 = phi(i0,j1,k1)*(1.-xd) + phi(i1,j1,k1)*xd
+
+   c0 = c00*(1.-yd)+c10*yd
+   c1 = c01*(1.-yd)+c11*yd
+
+   phiSurf(n) = c0*(1.-zd)+c1*zd
+
+   c00 = gradPhi(i0,j0,k0,1)*(1.-xd) + gradPhi(i1,j0,k0,1)*xd
+   c10 = gradPhi(i0,j1,k0,1)*(1.-xd) + gradPhi(i1,j1,k0,1)*xd
+   c01 = gradPhi(i0,j0,k1,1)*(1.-xd) + gradPhi(i1,j0,k1,1)*xd
+   c11 = gradPhi(i0,j1,k1,1)*(1.-xd) + gradPhi(i1,j1,k1,1)*xd
+
+   c0 = c00*(1.-yd)+c10*yd
+   c1 = c01*(1.-yd)+c11*yd
+
+   !IF (x > 0.) THEN
+      gradPhiSurf(n,1) = -(c0*(1.-zd)+c1*zd)
+   !ELSE 
+   !   gradPhiSurf(n,1) = (c0*(1.-zd)+c1*zd)
+   !END IF
+
+   c00 = gradPhi(i0,j0,k0,2)*(1.-xd) + gradPhi(i1,j0,k0,2)*xd
+   c10 = gradPhi(i0,j1,k0,2)*(1.-xd) + gradPhi(i1,j1,k0,2)*xd
+   c01 = gradPhi(i0,j0,k1,2)*(1.-xd) + gradPhi(i1,j0,k1,2)*xd
+   c11 = gradPhi(i0,j1,k1,2)*(1.-xd) + gradPhi(i1,j1,k1,2)*xd
+
+   c0 = c00*(1.-yd)+c10*yd
+   c1 = c01*(1.-yd)+c11*yd
+
+   !IF (y > 0.) THEN
+      gradPhiSurf(n,2) = -(c0*(1.-zd)+c1*zd)
+   !ELSE 
+   !   gradPhiSurf(n,2) = (c0*(1.-zd)+c1*zd)
+   !END IF
+
+   c00 = gradPhi(i0,j0,k0,3)*(1.-xd) + gradPhi(i1,j0,k0,3)*xd
+   c10 = gradPhi(i0,j1,k0,3)*(1.-xd) + gradPhi(i1,j1,k0,3)*xd
+   c01 = gradPhi(i0,j0,k1,3)*(1.-xd) + gradPhi(i1,j0,k1,3)*xd
+   c11 = gradPhi(i0,j1,k1,3)*(1.-xd) + gradPhi(i1,j1,k1,3)*xd
+
+   c0 = c00*(1.-yd)+c10*yd;
+   c1 = c01*(1.-yd)+c11*yd;
+
+   !IF (z > 0.) THEN
+      gradPhiSurf(n,3) = -(c0*(1.-zd)+c1*zd)
+   !ELSE 
+   !   gradPhiSurf(n,3) = (c0*(1.-zd)+c1*zd)
+   !END IF
+
+   gradMag2 = gradPhiSurf(n,1)*gradPhiSurf(n,1)+gradPhiSurf(n,2)*gradPhiSurf(n,2)+gradPhiSurf(n,3)*gradPhiSurf(n,3)
+
+   IF (gradMag2 < 1.E-7) THEN
+      gradPhiMag = 0.
+      gradPhiSurf(n,1) = 0.
+      gradPhiSurf(n,2) = 0.
+      gradPhiSurf(n,3) = 0.
+   ELSE
+      gradPhiMag = sqrt(gradMag2)
+      gradPhiSurf(n,1) = gradPhiSurf(n,1)/gradPhiMag
+      gradPhiSurf(n,2) = gradPhiSurf(n,2)/gradPhiMag
+      gradPhiSurf(n,3) = gradPhiSurf(n,3)/gradPhiMag
+   END IF
+
+END DO
+
+END SUBROUTINE setPhiSurf
+
 !*************************************************************************************!
 !
 ! Module End
