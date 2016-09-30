@@ -518,7 +518,7 @@ IF ((i>3).AND.(i<nx-4).AND.(j>3).AND.(j<ny-4).AND.(k>3).AND.(k<nz-4)) THEN
    IS0p = 13.*(ap-bp)*(ap-bp) + 3.*(ap-3.*bp)*(ap-3.*bp)
    IS0m = 13.*(am-bm)*(am-bm) + 3.*(am-3.*bm)*(am-3.*bm)
    IS1p = 13.*(bp-cp)*(bp-cp) + 3.*(bp +  cp)*(bp +  cp)
-   IS1m = 13.*(bm-cm)*(bm-cm) + 3.*(bm +  bm)*(bm +  bm)
+   IS1m = 13.*(bm-cm)*(bm-cm) + 3.*(bm +  cm)*(bm +  cm)
    IS2p = 13.*(cp-dp)*(cp-dp) + 3.*(3.*cp-dp)*(3.*cp-dp)
    IS2m = 13.*(cm-dm)*(cm-dm) + 3.*(3.*cm-dm)*(3.*cm-dm)
 
@@ -564,7 +564,7 @@ IF ((i>3).AND.(i<nx-4).AND.(j>3).AND.(j<ny-4).AND.(k>3).AND.(k<nz-4)) THEN
    IS0p = 13.*(ap-bp)*(ap-bp) + 3.*(ap-3.*bp)*(ap-3.*bp)
    IS0m = 13.*(am-bm)*(am-bm) + 3.*(am-3.*bm)*(am-3.*bm)
    IS1p = 13.*(bp-cp)*(bp-cp) + 3.*(bp +  cp)*(bp +  cp)
-   IS1m = 13.*(bm-cm)*(bm-cm) + 3.*(bm +  bm)*(bm +  bm)
+   IS1m = 13.*(bm-cm)*(bm-cm) + 3.*(bm +  cm)*(bm +  cm)
    IS2p = 13.*(cp-dp)*(cp-dp) + 3.*(3.*cp-dp)*(3.*cp-dp)
    IS2m = 13.*(cm-dm)*(cm-dm) + 3.*(3.*cm-dm)*(3.*cm-dm)
 
@@ -610,7 +610,7 @@ IF ((i>3).AND.(i<nx-4).AND.(j>3).AND.(j<ny-4).AND.(k>3).AND.(k<nz-4)) THEN
    IS0p = 13.*(ap-bp)*(ap-bp) + 3.*(ap-3.*bp)*(ap-3.*bp)
    IS0m = 13.*(am-bm)*(am-bm) + 3.*(am-3.*bm)*(am-3.*bm)
    IS1p = 13.*(bp-cp)*(bp-cp) + 3.*(bp +  cp)*(bp +  cp)
-   IS1m = 13.*(bm-cm)*(bm-cm) + 3.*(bm +  bm)*(bm +  bm)
+   IS1m = 13.*(bm-cm)*(bm-cm) + 3.*(bm +  cm)*(bm +  cm)
    IS2p = 13.*(cp-dp)*(cp-dp) + 3.*(3.*cp-dp)*(3.*cp-dp)
    IS2m = 13.*(cm-dm)*(cm-dm) + 3.*(3.*cm-dm)*(3.*cm-dm)
 
