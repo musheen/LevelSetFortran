@@ -13,13 +13,10 @@ Compile using the make file. Should be simple to follow. Working on adding a nam
 Couple of notes:
 - The code is pretty sensitve to the time step. 
 - Check the size of the geometry inside the .stl file. Ensure your dx is small or large enough to have at least 10 cells inside the zero level set. 
-- Currently has no capability to do moving geometry, that is in the works.
+- Currently has no capability to do moving geometry.
 - Currently in serial. Parallel version is in the works.
 - Currently uses uniform grid spacing. 
 - If you want to only run the signed distance function part, set the min/max iterations to zero. 
 - The .stl files need to be clean. No pierced faces or dirty CAD.
-- Currently uses .stl only right now. I would love to add in other CAD file types, but not a priority currently.
+- Currently uses .stl only right now.
 
-Feel free to contact me if you spot any bugs or have any changes you recommened. Email me at: oisin.tong@gmail.com 
-
-If this is useful to you in your work/research, I would love to hear about it. 
